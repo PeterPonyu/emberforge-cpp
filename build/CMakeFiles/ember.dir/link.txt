@@ -1,0 +1,1 @@
+/usr/bin/c++ CMakeFiles/ember.dir/apps/ember_cli/main.cpp.o -o ember  libemberforge_core.a 

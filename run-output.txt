@@ -1,0 +1,16 @@
+[telemetry] turn_started: hello from cpp system
+[telemetry] provider_completed: [cpp provider] model=claude-sonnet-4-6 prompt=hello from cpp system
+[telemetry] turn_started: /tool printf translated
+[telemetry] tool_executed: [cpp tool] bash => printf translated
+emberforge-cpp starter
+system: emberforge-cpp system
+commands: 3
+tools: 3
+plugins: 1
+server: Server listening on port 8080
+lsp: C++ LSP manager placeholder (mirrors crates/lsp)
+rust anchor: /home/zeyufu/Desktop/emberforge/crates/runtime/src/lib.rs
+turns: 2
+[cpp provider] model=claude-sonnet-4-6 prompt=hello from cpp system
+[cpp tool] bash => printf translated
+last turn: /tool printf translated

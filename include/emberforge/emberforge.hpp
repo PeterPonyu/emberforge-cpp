@@ -1,0 +1,16 @@
+#pragma once
+
+#include "emberforge/api/provider.hpp"
+#include "emberforge/commands/registry.hpp"
+#include "emberforge/compat/upstream_paths.hpp"
+#include "emberforge/lsp/manager.hpp"
+#include "emberforge/plugins/plugin.hpp"
+#include "emberforge/plugins/registry.hpp"
+#include "emberforge/runtime/runtime.hpp"
+#include "emberforge/runtime/session.hpp"
+#include "emberforge/server/server.hpp"
+#include "emberforge/system/application.hpp"
+#include "emberforge/system/config.hpp"
+#include "emberforge/system/report.hpp"
+#include "emberforge/telemetry/telemetry.hpp"
+#include "emberforge/tools/registry.hpp"

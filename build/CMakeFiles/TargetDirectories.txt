@@ -1,0 +1,4 @@
+/home/zeyufu/Desktop/emberforge-translations/emberforge-cpp/build/CMakeFiles/emberforge_core.dir
+/home/zeyufu/Desktop/emberforge-translations/emberforge-cpp/build/CMakeFiles/ember.dir
+/home/zeyufu/Desktop/emberforge-translations/emberforge-cpp/build/CMakeFiles/edit_cache.dir
+/home/zeyufu/Desktop/emberforge-translations/emberforge-cpp/build/CMakeFiles/rebuild_cache.dir
