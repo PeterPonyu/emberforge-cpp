@@ -11,7 +11,10 @@
 #include "emberforge/plugins/registry.hpp"
 #include "emberforge/runtime/runtime.hpp"
 #include "emberforge/server/server.hpp"
+#include "emberforge/system/control_sequence.hpp"
 #include "emberforge/system/config.hpp"
+#include "emberforge/system/dispatch.hpp"
+#include "emberforge/system/lifecycle.hpp"
 #include "emberforge/system/report.hpp"
 #include "emberforge/telemetry/telemetry.hpp"
 #include "emberforge/tools/registry.hpp"
@@ -23,6 +26,7 @@ public:
     explicit StarterSystemApplication(StarterSystemConfig config = {});
 
     [[nodiscard]] std::vector<std::string> run_demo();
+    void shutdown();
     [[nodiscard]] StarterSystemReport report() const;
 
 private:
@@ -36,6 +40,9 @@ private:
     server::Server server_;
     lsp::LspManager lsp_;
     compat::UpstreamPaths paths_;
+    LifecycleTracker lifecycle_;
+    SystemDispatcher dispatcher_;
+    ControlSequenceEngine control_sequence_;
 };
 
 } // namespace emberforge::system

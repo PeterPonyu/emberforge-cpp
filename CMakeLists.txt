@@ -15,6 +15,8 @@ add_library(emberforge_core
     src/telemetry/telemetry.cpp
     src/lsp/manager.cpp
     src/server/server.cpp
+    src/system/control_sequence.cpp
+    src/system/dispatch.cpp
     src/system/application.cpp
     src/compat/upstream_paths.cpp
 )

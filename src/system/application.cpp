@@ -12,17 +12,33 @@ StarterSystemApplication::StarterSystemApplication(StarterSystemConfig config)
       plugin_registry_({&plugin_}),
       server_({config_.port}),
       lsp_(),
-      paths_(compat::default_upstream_paths()) {}
+      paths_(compat::default_upstream_paths()),
+      lifecycle_(),
+      dispatcher_(),
+      control_sequence_(runtime_, dispatcher_, lifecycle_, telemetry_) {}
 
 std::vector<std::string> StarterSystemApplication::run_demo() {
+    control_sequence_.bootstrap();
     return {
-        runtime_.run_turn(config_.greeting),
-        runtime_.run_turn("/tool " + config_.tool_demo_command),
+        control_sequence_.handle("/" + config_.command_demo_name).output,
+        control_sequence_.handle(config_.greeting).output,
+        control_sequence_.handle("/tool " + config_.tool_demo_command).output,
     };
+}
+
+void StarterSystemApplication::shutdown() {
+    control_sequence_.shutdown();
 }
 
 StarterSystemReport StarterSystemApplication::report() const {
     const auto last_turn = runtime_.session().last_turn();
+    const auto last_record = control_sequence_.last_record();
+    std::vector<std::string> last_phase_history;
+    if (last_record) {
+        for (const auto phase : last_record->phases) {
+            last_phase_history.push_back(to_string(phase));
+        }
+    }
     return {
         .app_name = config_.app_name,
         .command_count = commands::get_commands().size(),
@@ -32,6 +48,10 @@ StarterSystemReport StarterSystemApplication::report() const {
         .lsp_summary = lsp_.summary(),
         .rust_anchor = paths_.ember_runtime_lib_rs,
         .turn_count = runtime_.turn_count(),
+        .handled_request_count = control_sequence_.records().size(),
+        .lifecycle_state = to_string(control_sequence_.lifecycle_state()),
+        .last_route = last_record ? std::optional<std::string>{to_string(last_record->route)} : std::nullopt,
+        .last_phase_history = last_phase_history,
         .last_turn_input = last_turn ? std::optional<std::string>{last_turn->input} : std::nullopt,
     };
 }

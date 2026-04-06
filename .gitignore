@@ -1,0 +1,12 @@
+build/
+*.o
+*.a
+*.so
+*.dylib
+cmake-build-*/
+.cache/
+.vscode/
+.idea/
+*.swp
+compile_commands.json
+run-output.txt
