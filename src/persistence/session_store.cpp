@@ -53,6 +53,9 @@ void SessionStore::save(const Session& s) {
         rec["role"] = msg.role;
         if (!msg.blocks.is_null() && !msg.blocks.empty()) {
             rec["blocks"] = msg.blocks;
+            if (!msg.timestamp.empty()) {
+                rec["timestamp"] = msg.timestamp;
+            }
         } else {
             rec["content"] = msg.content;
             if (!msg.timestamp.empty()) {
@@ -90,6 +93,7 @@ Session SessionStore::load(const std::string& id) {
         msg.role = rec.value("role", "");
         if (rec.contains("blocks")) {
             msg.blocks = rec["blocks"];
+            msg.timestamp = rec.value("timestamp", "");
         } else {
             msg.content = rec.value("content", "");
             msg.timestamp = rec.value("timestamp", "");
