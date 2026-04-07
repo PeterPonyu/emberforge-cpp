@@ -32,6 +32,7 @@ add_library(emberforge_core
     src/compat/upstream_paths.cpp
     src/ui/repl.cpp
     src/ui/command_dispatch.cpp
+    src/persistence/session_store.cpp
 )
 
 target_include_directories(emberforge_core PUBLIC include)
@@ -62,3 +63,9 @@ target_include_directories(test_command_dispatch PRIVATE include)
 target_link_libraries(test_command_dispatch PRIVATE emberforge_core)
 
 add_test(NAME test_command_dispatch COMMAND test_command_dispatch)
+
+add_executable(test_session_store tests/test_session_store.cpp)
+target_include_directories(test_session_store PRIVATE include)
+target_link_libraries(test_session_store PRIVATE emberforge_core)
+
+add_test(NAME test_session_store COMMAND test_session_store)
