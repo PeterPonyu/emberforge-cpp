@@ -5,12 +5,17 @@
 #include <string>
 #include <vector>
 
+#include <nlohmann/json.hpp>
+
 namespace emberforge::persistence {
 
 struct ConversationMessage {
     std::string role;
     std::string content;
     std::string timestamp;
+    // blocks is null for text-only messages; for structured messages it carries
+    // an array of block records per CROSS_PORT_CONTRACT.md §2
+    nlohmann::json blocks = nlohmann::json(nullptr);
 };
 
 struct Session {

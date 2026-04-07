@@ -1,6 +1,9 @@
 #include "emberforge/ui/repl.hpp"
 
-#include <cstdio>
+#include <chrono>
+#include <cstdlib>
+#include <ctime>
+#include <iomanip>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -9,19 +12,16 @@
 #include <vector>
 
 #include "emberforge/api/provider.hpp"
+#include "emberforge/persistence/session_store.hpp"
 #include "emberforge/system/application.hpp"
 
 namespace emberforge::ui {
 
-// ---------------------------------------------------------------------------
-// RAII guard: enables termios raw mode in ctor, restores original in dtor.
-// ---------------------------------------------------------------------------
 class RawMode {
 public:
     RawMode() {
         tcgetattr(STDIN_FILENO, &original_);
         struct termios raw = original_;
-        // Disable canonical mode, echo; enable raw character-at-a-time input.
         raw.c_iflag &= ~static_cast<tcflag_t>(ICRNL | IXON);
         raw.c_oflag &= ~static_cast<tcflag_t>(OPOST);
         raw.c_lflag &= ~static_cast<tcflag_t>(ECHO | ICANON | IEXTEN | ISIG);
@@ -34,7 +34,6 @@ public:
         tcsetattr(STDIN_FILENO, TCSAFLUSH, &original_);
     }
 
-    // Non-copyable, non-movable.
     RawMode(const RawMode&) = delete;
     RawMode& operator=(const RawMode&) = delete;
 
@@ -49,13 +48,34 @@ static void print_prompt() {
     std::cout << "ember> " << std::flush;
 }
 
-// Reprint the current line after a buffer modification.
 static void redraw_line(const std::string& buf, std::size_t cursor) {
     std::cout << "\r\x1b[K" << "ember> " << buf << std::flush;
     if (cursor < buf.size()) {
         const std::size_t steps = buf.size() - cursor;
         std::cout << "\x1b[" << steps << "D" << std::flush;
     }
+}
+
+static std::string iso_now() {
+    const auto now = std::chrono::system_clock::now();
+    const std::time_t t = std::chrono::system_clock::to_time_t(now);
+    struct tm buf_tm{};
+    gmtime_r(&t, &buf_tm);
+    std::ostringstream oss;
+    oss << std::put_time(&buf_tm, "%Y-%m-%dT%H:%M:%SZ");
+    return oss.str();
+}
+
+static std::string generate_session_id() {
+    const auto now = std::chrono::system_clock::now();
+    const uint64_t ts = static_cast<uint64_t>(
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+            now.time_since_epoch()).count());
+    const uint64_t pid = static_cast<uint64_t>(::getpid());
+    const uint64_t combined = ts ^ (pid << 16);
+    std::ostringstream oss;
+    oss << std::hex << std::setfill('0') << std::setw(16) << combined;
+    return oss.str();
 }
 
 static std::vector<std::string> split_args(const std::string& s) {
@@ -117,14 +137,12 @@ int Repl::run() {
             std::cout << '\n';
 
             if (!buf.empty()) {
-                // Add to history (ring buffer, max 100).
                 if (history.size() >= 100) {
                     history.erase(history.begin());
                 }
                 history.push_back(buf);
                 history_idx = -1;
 
-                // Dispatch
                 if (buf[0] == '/') {
                     const std::string body = buf.substr(1); // strip leading '/'
                     auto parts = split_args(body);
@@ -142,19 +160,34 @@ int Repl::run() {
                         } else {
                             const int rc = dispatch_.invoke(cmd, app_, parts);
                             if (rc == 255) {
-                                // /quit
+                                // /quit — persist session if non-empty.
+                                if (!session_messages_.empty()) {
+                                    try {
+                                        persistence::Session s{
+                                            generate_session_id(),
+                                            iso_now(),
+                                            session_messages_
+                                        };
+                                        app_.session_store().save(s);
+                                    } catch (const std::exception& ex) {
+                                        std::cerr << "[repl] failed to save session: "
+                                                  << ex.what() << '\n';
+                                    }
+                                }
                                 return 0;
                             }
                         }
                     }
                 } else {
-                    // Non-slash line: send to provider.
                     const char* env_model = std::getenv("EMBER_MODEL");
                     const std::string model = env_model ? env_model : "qwen3:8b";
                     try {
                         emberforge::api::MessageRequest req{model, buf};
+                        const std::string user_ts = iso_now();
                         auto response = app_.provider().send_message(req);
                         std::cout << response.text << '\n';
+                        session_messages_.push_back({"user", buf, user_ts});
+                        session_messages_.push_back({"assistant", response.text, iso_now()});
                     } catch (const std::exception& ex) {
                         std::cerr << "[repl] error: " << ex.what() << '\n';
                     }

@@ -1,3 +1,4 @@
+#include <filesystem>
 #include <memory>
 
 #include "emberforge/api/provider.hpp"
@@ -9,6 +10,7 @@ StarterSystemApplication::StarterSystemApplication(std::unique_ptr<api::Provider
                                                    StarterSystemConfig config)
     : config_(std::move(config)),
       provider_(std::move(provider)),
+      session_store_(std::filesystem::path{}),
       tool_executor_(),
       telemetry_(),
       runtime_(*provider_, tool_executor_, telemetry_),

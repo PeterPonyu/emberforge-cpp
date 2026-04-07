@@ -51,9 +51,13 @@ void SessionStore::save(const Session& s) {
         nlohmann::json rec;
         rec["type"] = "message";
         rec["role"] = msg.role;
-        rec["content"] = msg.content;
-        if (!msg.timestamp.empty()) {
-            rec["timestamp"] = msg.timestamp;
+        if (!msg.blocks.is_null() && !msg.blocks.empty()) {
+            rec["blocks"] = msg.blocks;
+        } else {
+            rec["content"] = msg.content;
+            if (!msg.timestamp.empty()) {
+                rec["timestamp"] = msg.timestamp;
+            }
         }
         out << rec.dump() << '\n';
     }
@@ -84,8 +88,12 @@ Session SessionStore::load(const std::string& id) {
         auto rec = nlohmann::json::parse(line);
         ConversationMessage msg;
         msg.role = rec.value("role", "");
-        msg.content = rec.value("content", "");
-        msg.timestamp = rec.value("timestamp", "");
+        if (rec.contains("blocks")) {
+            msg.blocks = rec["blocks"];
+        } else {
+            msg.content = rec.value("content", "");
+            msg.timestamp = rec.value("timestamp", "");
+        }
         session.messages.push_back(std::move(msg));
     }
 

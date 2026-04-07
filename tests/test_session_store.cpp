@@ -7,6 +7,8 @@
 #include <string>
 #include <unistd.h>
 
+#include <nlohmann/json.hpp>
+
 // RAII guard: removes a directory tree on scope exit.
 struct TempDirGuard {
     std::filesystem::path path;
@@ -151,11 +153,68 @@ static bool test_remove_deletes_file_and_load_throws() {
     return true;
 }
 
+static bool test_save_and_load_blocks_round_trip() {
+    const auto tmp = make_test_dir();
+    TempDirGuard guard(tmp);
+
+    emberforge::persistence::SessionStore store(tmp);
+
+    emberforge::persistence::Session s;
+    s.id = "blocks-session-001";
+    s.created_at = "2026-04-07T12:00:00Z";
+
+    // Message 1: legacy text-only
+    emberforge::persistence::ConversationMessage text_msg;
+    text_msg.role = "user";
+    text_msg.content = "what time is it?";
+    text_msg.timestamp = "2026-04-07T12:00:05Z";
+    s.messages.push_back(text_msg);
+
+    // Message 2: structured with tool_use + tool_result blocks (fixture shape)
+    emberforge::persistence::ConversationMessage blocks_msg;
+    blocks_msg.role = "tool";
+    blocks_msg.blocks = nlohmann::json::array({
+        {{"type", "tool_use"}, {"id", "tu1"}, {"name", "bash"}, {"input", "{\"command\":\"date\"}"}},
+        {{"type", "tool_result"}, {"tool_use_id", "tu1"}, {"tool_name", "bash"},
+         {"output", "Tue Apr  7 12:00:06 UTC 2026"}, {"is_error", false}}
+    });
+    s.messages.push_back(blocks_msg);
+
+    store.save(s);
+
+    emberforge::persistence::SessionStore store2(tmp);
+    const auto loaded = store2.load(s.id);
+
+    if (loaded.messages.size() != 2) {
+        std::cerr << "FAIL (save_and_load_blocks_round_trip): expected 2 messages, got "
+                  << loaded.messages.size() << '\n';
+        return false;
+    }
+    // Check text-only message survives
+    if (loaded.messages[0].content != text_msg.content) {
+        std::cerr << "FAIL (save_and_load_blocks_round_trip): text message content mismatch\n";
+        return false;
+    }
+    // Check structured message blocks survive (deep equality)
+    if (loaded.messages[1].blocks != blocks_msg.blocks) {
+        std::cerr << "FAIL (save_and_load_blocks_round_trip): blocks mismatch\n";
+        return false;
+    }
+    if (!loaded.messages[1].content.empty()) {
+        std::cerr << "FAIL (save_and_load_blocks_round_trip): content should be empty for blocks message\n";
+        return false;
+    }
+
+    std::cout << "PASS (save_and_load_blocks_round_trip)\n";
+    return true;
+}
+
 int main() {
     bool all_pass = true;
     all_pass &= test_save_and_load_round_trip();
     all_pass &= test_list_returns_created_sessions();
     all_pass &= test_remove_deletes_file_and_load_throws();
+    all_pass &= test_save_and_load_blocks_round_trip();
 
     if (all_pass) {
         std::cout << "All SessionStore tests PASSED\n";

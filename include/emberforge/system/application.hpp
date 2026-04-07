@@ -8,6 +8,7 @@
 #include "emberforge/commands/registry.hpp"
 #include "emberforge/compat/upstream_paths.hpp"
 #include "emberforge/lsp/manager.hpp"
+#include "emberforge/persistence/session_store.hpp"
 #include "emberforge/plugins/plugin.hpp"
 #include "emberforge/plugins/registry.hpp"
 #include "emberforge/runtime/runtime.hpp"
@@ -34,10 +35,12 @@ public:
     void shutdown();
     [[nodiscard]] StarterSystemReport report() const;
     [[nodiscard]] api::Provider& provider() { return *provider_; }
+    [[nodiscard]] persistence::SessionStore& session_store() { return session_store_; }
 
 private:
     StarterSystemConfig config_;
     std::unique_ptr<api::Provider> provider_;
+    persistence::SessionStore session_store_;
     tools::RealToolExecutor tool_executor_;
     telemetry::ConsoleTelemetrySink telemetry_;
     runtime::ConversationRuntime runtime_;
