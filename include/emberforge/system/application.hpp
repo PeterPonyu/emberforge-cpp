@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -24,7 +25,9 @@ namespace emberforge::system {
 
 class StarterSystemApplication {
 public:
-    explicit StarterSystemApplication(StarterSystemConfig config = {});
+    // Accept a runtime-chosen provider (ownership transferred via unique_ptr).
+    explicit StarterSystemApplication(std::unique_ptr<api::Provider> provider,
+                                      StarterSystemConfig config = {});
 
     [[nodiscard]] std::vector<std::string> run_demo();
     void shutdown();
@@ -32,7 +35,7 @@ public:
 
 private:
     StarterSystemConfig config_;
-    api::MockProvider provider_;
+    std::unique_ptr<api::Provider> provider_;
     tools::MockToolExecutor tool_executor_;
     telemetry::ConsoleTelemetrySink telemetry_;
     runtime::ConversationRuntime runtime_;

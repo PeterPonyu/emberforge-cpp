@@ -17,7 +17,7 @@ std::string ConversationRuntime::run_turn(const std::string& input) {
         output = tool_executor_.execute("bash", payload);
         telemetry_sink_.record({"tool_executed", output});
     } else {
-        const auto response = provider_.send_message({"claude-sonnet-4-6", input});
+        const auto response = provider_.send_message({"", input});
         output = response.text;
         telemetry_sink_.record({"provider_completed", output});
     }

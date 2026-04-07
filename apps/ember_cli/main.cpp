@@ -1,14 +1,25 @@
 #include <iostream>
+#include <cstdlib>
+#include <memory>
+#include <string>
 
 #include "emberforge/emberforge.hpp"
+#include "emberforge/api/ollama_provider.hpp"
 
 int main() {
-    emberforge::system::StarterSystemApplication app;
+    const char* env_base_url = std::getenv("OLLAMA_BASE_URL");
+    const char* env_model    = std::getenv("EMBER_MODEL");
+    const std::string base_url = env_base_url ? env_base_url : "http://localhost:11434";
+    const std::string model    = env_model    ? env_model    : "qwen3:8b";
+
+    auto provider = std::make_unique<emberforge::api::OllamaProvider>(base_url, model);
+    emberforge::system::StarterSystemApplication app(std::move(provider));
     const auto demo_outputs = app.run_demo();
     app.shutdown();
     const auto report = app.report();
 
     std::cout << "emberforge-cpp starter\n";
+    std::cout << "provider: ollama @ " << base_url << " model=" << model << '\n';
     std::cout << "system: " << report.app_name << '\n';
     std::cout << "lifecycle: " << report.lifecycle_state << '\n';
     std::cout << "commands: " << report.command_count << '\n';
@@ -25,11 +36,10 @@ int main() {
     std::cout << "last route: "
               << (report.last_route ? *report.last_route : std::string{"none"}) << '\n';
     std::cout << "last phases: ";
-    for (std::size_t index = 0; index < report.last_phase_history.size(); ++index) {
-        if (index > 0) {
-            std::cout << " -> ";
-        }
-        std::cout << report.last_phase_history[index];
+    const char* sep = "";
+    for (const auto& phase : report.last_phase_history) {
+        std::cout << sep << phase;
+        sep = " -> ";
     }
     std::cout << '\n';
     std::cout << "last turn: "

@@ -1,13 +1,17 @@
+#include <memory>
+
+#include "emberforge/api/provider.hpp"
 #include "emberforge/system/application.hpp"
 
 namespace emberforge::system {
 
-StarterSystemApplication::StarterSystemApplication(StarterSystemConfig config)
+StarterSystemApplication::StarterSystemApplication(std::unique_ptr<api::Provider> provider,
+                                                   StarterSystemConfig config)
     : config_(std::move(config)),
-      provider_(),
+      provider_(std::move(provider)),
       tool_executor_(),
       telemetry_(),
-      runtime_(provider_, tool_executor_, telemetry_),
+      runtime_(*provider_, tool_executor_, telemetry_),
       plugin_(),
       plugin_registry_({&plugin_}),
       server_({config_.port}),

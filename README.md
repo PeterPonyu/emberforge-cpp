@@ -53,7 +53,15 @@ apps/ember_cli/     CLI entry point
 
 ## Building
 
-Requires a C++20-capable compiler and CMake 3.20+.
+Requires a C++20-capable compiler, CMake 3.20+, and **libcurl** (for the Ollama HTTP provider).
+
+Install libcurl on Debian/Ubuntu:
+
+```bash
+sudo apt-get install libcurl4-openssl-dev
+```
+
+Build:
 
 ```bash
 mkdir build && cd build
@@ -61,7 +69,16 @@ cmake ..
 make
 ```
 
-The build produces a single `ember` binary.
+The build produces a single `ember` binary and a `test_ollama_provider` test binary.
+
+### Running tests
+
+```bash
+cd build
+ctest --output-on-failure
+# or directly:
+./test_ollama_provider
+```
 
 ## Model Support
 
@@ -82,7 +99,8 @@ Emberforge reads configuration from (in order of priority):
 Environment variables:
 
 - `EMBER_CONFIG_HOME` — override config directory
-- `OLLAMA_BASE_URL` — custom Ollama endpoint (default: `http://localhost:11434/v1`)
+- `OLLAMA_BASE_URL` — custom Ollama endpoint (default: `http://localhost:11434`)
+- `EMBER_MODEL` — model to use with the Ollama provider (default: `qwen3:8b`)
 - `ANTHROPIC_API_KEY` — Anthropic API credentials
 - `XAI_API_KEY` — xAI API credentials
 
