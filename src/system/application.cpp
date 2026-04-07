@@ -15,7 +15,8 @@ StarterSystemApplication::StarterSystemApplication(StarterSystemConfig config)
       paths_(compat::default_upstream_paths()),
       lifecycle_(),
       dispatcher_(),
-      control_sequence_(runtime_, dispatcher_, lifecycle_, telemetry_) {}
+      control_sequence_(runtime_, dispatcher_, lifecycle_, telemetry_),
+      turn_(control_sequence_, TurnBudget{config_.max_turns, config_.max_cost_usd}) {}
 
 std::vector<std::string> StarterSystemApplication::run_demo() {
     control_sequence_.bootstrap();

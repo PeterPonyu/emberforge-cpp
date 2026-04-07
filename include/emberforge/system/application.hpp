@@ -12,6 +12,7 @@
 #include "emberforge/runtime/runtime.hpp"
 #include "emberforge/server/server.hpp"
 #include "emberforge/system/control_sequence.hpp"
+#include "emberforge/system/turn.hpp"
 #include "emberforge/system/config.hpp"
 #include "emberforge/system/dispatch.hpp"
 #include "emberforge/system/lifecycle.hpp"
@@ -43,6 +44,7 @@ private:
     LifecycleTracker lifecycle_;
     SystemDispatcher dispatcher_;
     ControlSequenceEngine control_sequence_;
+    TurnEngine turn_;
 };
 
 } // namespace emberforge::system

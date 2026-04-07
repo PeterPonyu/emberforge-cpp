@@ -17,6 +17,7 @@ add_library(emberforge_core
     src/server/server.cpp
     src/system/control_sequence.cpp
     src/system/dispatch.cpp
+    src/system/turn.cpp
     src/system/application.cpp
     src/compat/upstream_paths.cpp
 )
