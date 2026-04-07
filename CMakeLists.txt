@@ -30,6 +30,8 @@ add_library(emberforge_core
     src/system/turn.cpp
     src/system/application.cpp
     src/compat/upstream_paths.cpp
+    src/ui/repl.cpp
+    src/ui/command_dispatch.cpp
 )
 
 target_include_directories(emberforge_core PUBLIC include)
@@ -54,3 +56,9 @@ target_include_directories(test_real_tool_executor PRIVATE include)
 target_link_libraries(test_real_tool_executor PRIVATE emberforge_core)
 
 add_test(NAME test_real_tool_executor COMMAND test_real_tool_executor)
+
+add_executable(test_command_dispatch tests/test_command_dispatch.cpp)
+target_include_directories(test_command_dispatch PRIVATE include)
+target_link_libraries(test_command_dispatch PRIVATE emberforge_core)
+
+add_test(NAME test_command_dispatch COMMAND test_command_dispatch)

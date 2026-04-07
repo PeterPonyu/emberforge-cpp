@@ -1,12 +1,25 @@
 #include <iostream>
 #include <cstdlib>
+#include <cstring>
 #include <memory>
 #include <string>
+#include <unistd.h>
 
 #include "emberforge/emberforge.hpp"
 #include "emberforge/api/ollama_provider.hpp"
+#include "emberforge/ui/repl.hpp"
 
-int main() {
+static bool wants_repl(int argc, char* argv[]) {
+    for (int i = 1; i < argc; ++i) {
+        if (std::strcmp(argv[i], "--repl") == 0) {
+            return true;
+        }
+    }
+    // Default to REPL when no arguments given and stdin is a TTY.
+    return (argc == 1) && (isatty(STDIN_FILENO) != 0);
+}
+
+int main(int argc, char* argv[]) {
     try {
         const char* env_base_url = std::getenv("OLLAMA_BASE_URL");
         const char* env_model    = std::getenv("EMBER_MODEL");
@@ -15,6 +28,13 @@ int main() {
 
         auto provider = std::make_unique<emberforge::api::OllamaProvider>(base_url, model);
         emberforge::system::StarterSystemApplication app(std::move(provider));
+
+        if (wants_repl(argc, argv)) {
+            emberforge::ui::Repl repl(app);
+            return repl.run();
+        }
+
+        // --- Demo mode (original behaviour) ---
         const auto demo_outputs = app.run_demo();
         app.shutdown();
         const auto report = app.report();

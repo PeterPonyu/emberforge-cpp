@@ -33,6 +33,7 @@ public:
     [[nodiscard]] std::vector<std::string> run_demo();
     void shutdown();
     [[nodiscard]] StarterSystemReport report() const;
+    [[nodiscard]] api::Provider& provider() { return *provider_; }
 
 private:
     StarterSystemConfig config_;
