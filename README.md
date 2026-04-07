@@ -53,13 +53,15 @@ apps/ember_cli/     CLI entry point
 
 ## Building
 
-Requires a C++20-capable compiler, CMake 3.20+, and **libcurl** (for the Ollama HTTP provider).
+Requires a C++20-capable compiler, CMake 3.20+, **libcurl** (for the Ollama HTTP provider), and **nlohmann/json** (for NDJSON parsing).
 
-Install libcurl on Debian/Ubuntu:
+Install dependencies on Debian/Ubuntu:
 
 ```bash
-sudo apt-get install libcurl4-openssl-dev
+sudo apt-get install libcurl4-openssl-dev nlohmann-json3-dev
 ```
+
+**JSON library**: nlohmann/json (system package `nlohmann-json3-dev`, v3.11.3+) is used for NDJSON parsing in `OllamaProvider`. It correctly handles all JSON escape sequences including `\uXXXX` Unicode escapes. The system package is preferred over vendoring to avoid tracking large generated headers in source control.
 
 Build:
 

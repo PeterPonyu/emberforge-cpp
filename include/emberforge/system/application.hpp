@@ -20,6 +20,7 @@
 #include "emberforge/system/report.hpp"
 #include "emberforge/telemetry/telemetry.hpp"
 #include "emberforge/tools/registry.hpp"
+#include "emberforge/tools/real_executor.hpp"
 
 namespace emberforge::system {
 
@@ -36,7 +37,7 @@ public:
 private:
     StarterSystemConfig config_;
     std::unique_ptr<api::Provider> provider_;
-    tools::MockToolExecutor tool_executor_;
+    tools::RealToolExecutor tool_executor_;
     telemetry::ConsoleTelemetrySink telemetry_;
     runtime::ConversationRuntime runtime_;
     plugins::ExamplePlugin plugin_;

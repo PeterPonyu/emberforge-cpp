@@ -1,71 +1,30 @@
 #include "emberforge/api/ollama_provider.hpp"
 
 #include <curl/curl.h>
+#include <nlohmann/json.hpp>
 #include <stdexcept>
 #include <string>
 #include <sstream>
 
 namespace emberforge::api {
 
-// ---------------------------------------------------------------------------
-// NDJSON content extractor
-//
-// Ollama streams one JSON object per line, e.g.:
-//   {"model":"qwen3:8b","message":{"role":"assistant","content":"H"},"done":false}
-//
-// We need to extract message.content from each line and stop when done==true.
-//
-// A regex like R"("content":"([^"]*)")" would mis-handle escaped characters
-// inside the value. Instead we locate the literal substring `"content":"`,
-// then walk forward byte-by-byte, unescaping `\"` so we collect exactly the
-// characters the JSON spec defines.
-// ---------------------------------------------------------------------------
-
 static std::string extract_content_from_line(const std::string& line) {
-    // Find the "content": key inside the "message" object.
-    // We search for the literal token to avoid false matches on top-level keys.
-    const std::string needle = "\"content\":\"";
-    const auto pos = line.find(needle);
-    if (pos == std::string::npos) {
+    try {
+        const auto obj = nlohmann::json::parse(line);
+        return obj.value("/message/content"_json_pointer, std::string{});
+    } catch (const nlohmann::json::exception&) {
         return {};
     }
-
-    std::string result;
-    std::size_t i = pos + needle.size();
-    while (i < line.size()) {
-        char c = line[i];
-        if (c == '\\' && i + 1 < line.size()) {
-            // Escape sequence — handle the common JSON escapes.
-            char next = line[i + 1];
-            switch (next) {
-                case '"':  result += '"';  break;
-                case '\\': result += '\\'; break;
-                case '/':  result += '/';  break;
-                case 'n':  result += '\n'; break;
-                case 'r':  result += '\r'; break;
-                case 't':  result += '\t'; break;
-                default:   result += next; break;
-            }
-            i += 2;
-        } else if (c == '"') {
-            // Closing quote — done.
-            break;
-        } else {
-            result += c;
-            ++i;
-        }
-    }
-    return result;
 }
 
 static bool line_is_done(const std::string& line) {
-    // Check for "done":true — sufficient for termination detection.
-    return line.find("\"done\":true") != std::string::npos;
+    try {
+        const auto obj = nlohmann::json::parse(line);
+        return obj.value("done", false);
+    } catch (const nlohmann::json::exception&) {
+        return false;
+    }
 }
-
-// ---------------------------------------------------------------------------
-// libcurl write callback — appends received bytes to a std::string buffer.
-// ---------------------------------------------------------------------------
 
 static std::size_t curl_write_callback(char* ptr, std::size_t size,
                                        std::size_t nmemb, void* userdata) {
@@ -74,10 +33,6 @@ static std::size_t curl_write_callback(char* ptr, std::size_t size,
     buf->append(ptr, total);
     return total;
 }
-
-// ---------------------------------------------------------------------------
-// OllamaProvider implementation
-// ---------------------------------------------------------------------------
 
 OllamaProvider::OllamaProvider(std::string base_url, std::string model)
     : base_url_(std::move(base_url)), model_(std::move(model)) {}
