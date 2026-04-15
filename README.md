@@ -1,8 +1,8 @@
 # Emberforge (C++)
 
-**A local-first coding forge for serious developers.**
+**Local-first terminal tooling for language-model workflows.**
 
-Emberforge is an interactive coding assistant that runs in your terminal, powered by local LLMs via Ollama. This is the C++ implementation — built with modern C++20, CMake, and zero mandatory dependencies beyond a standard toolchain.
+Emberforge is a terminal coding tool that works with local models through Ollama and can use hosted providers when configured. This repository contains the C++ implementation, built with C++20, CMake, and a small dependency set.
 
 ## Quick Start
 
@@ -23,10 +23,10 @@ mkdir build && cd build && cmake .. && make
 ## Features
 
 - **Local-first**: Runs with Ollama — no API keys needed for local models
-- **Cloud fallback**: Anthropic Claude, xAI Grok when API keys are configured
-- **Rich slash commands**: `/help`, `/status`, `/doctor`, `/model`, `/compact`, `/review`, `/commit`, `/pr`, and more
-- **Built-in tools**: bash, file ops, search, web, notebooks, agents, skills
-- **Session persistence**: Save, resume, export conversations
+- **Hosted providers**: Anthropic Claude and xAI Grok when API keys are configured
+- **Slash commands**: `/help`, `/status`, `/doctor`, `/model`, `/compact`, `/review`, `/commit`, `/pr`, and more
+- **Tools**: bash, file ops, search, web, notebooks, agents, skills
+- **Sessions**: Save, resume, export conversations
 - **Plugin system**: Extend with custom tools and hooks
 - **MCP integration**: Connect to Model Context Protocol servers
 - **Telemetry**: Session tracing and usage analytics
