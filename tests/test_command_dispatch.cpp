@@ -183,6 +183,10 @@ int main() {
             std::cerr << "FAIL (starter_commands_accept_payload_args): buddy payload missing\n";
             return 1;
         }
+        if (dispatch.invoke("buddy", app, {"hatch"}) != 0) {
+            std::cerr << "FAIL (starter_commands_accept_payload_args): second buddy hatch returned non-zero\n";
+            return 1;
+        }
         if (output.find("[command] review") == std::string::npos || output.find("scope: workspace") == std::string::npos) {
             std::cerr << "FAIL (starter_commands_accept_payload_args): review payload missing\n";
             return 1;
@@ -225,11 +229,36 @@ int main() {
         std::ostringstream rehatch_oss;
         std::cout.rdbuf(rehatch_oss.rdbuf());
 
+        const int hatch_again_rc = dispatch.invoke("buddy", app2, {"hatch"});
+        const int mute_rc = dispatch.invoke("buddy", app2, {"mute"});
+        const int mute_again_rc = dispatch.invoke("buddy", app2, {"mute"});
+        const int unmute_rc = dispatch.invoke("buddy", app2, {"unmute"});
+        const int unmute_again_rc = dispatch.invoke("buddy", app2, {"unmute"});
         const int rehatch_rc = dispatch.invoke("buddy", app2, {"rehatch"});
 
         std::cout.rdbuf(old_buf_rehatch);
         const std::string rehatch_output = rehatch_oss.str();
 
+        if (hatch_again_rc != 0 || rehatch_output.find("status: companion already active") == std::string::npos) {
+            std::cerr << "FAIL (buddy_state_persists_across_app_instances): second hatch output missing\n";
+            return 1;
+        }
+        if (mute_rc != 0 || rehatch_output.find("status: muted") == std::string::npos) {
+            std::cerr << "FAIL (buddy_state_persists_across_app_instances): mute output missing\n";
+            return 1;
+        }
+        if (mute_again_rc != 0 || rehatch_output.find("status: already muted") == std::string::npos) {
+            std::cerr << "FAIL (buddy_state_persists_across_app_instances): second mute output missing\n";
+            return 1;
+        }
+        if (unmute_rc != 0 || rehatch_output.find("note: welcome back") == std::string::npos) {
+            std::cerr << "FAIL (buddy_state_persists_across_app_instances): unmute output missing\n";
+            return 1;
+        }
+        if (unmute_again_rc != 0 || rehatch_output.find("status: already active") == std::string::npos) {
+            std::cerr << "FAIL (buddy_state_persists_across_app_instances): second unmute output missing\n";
+            return 1;
+        }
         if (rehatch_rc != 0 || rehatch_output.find("name: Goosberry") == std::string::npos) {
             std::cerr << "FAIL (buddy_state_persists_across_app_instances): rehatch did not advance\n";
             return 1;

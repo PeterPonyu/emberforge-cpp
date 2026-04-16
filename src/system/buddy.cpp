@@ -66,6 +66,15 @@ std::string render_companion(const std::string& prefix,
     return oss.str();
 }
 
+std::string render_command(const std::string& prefix, std::initializer_list<std::string> lines) {
+    std::ostringstream oss;
+    oss << prefix;
+    for (const auto& line : lines) {
+        oss << '\n' << line;
+    }
+    return oss.str();
+}
+
 StarterBuddyCompanion next_template(std::size_t& next_index) {
     const auto& templ = BUDDY_TEMPLATES[next_index % BUDDY_TEMPLATES.size()];
     next_index += 1;
@@ -209,12 +218,21 @@ std::string execute_buddy_command(StarterBuddyState& state, const std::string& p
     }
 
     if (action == "hatch") {
+        if (state.current()) {
+            return render_command(
+                "[command] buddy hatch",
+                {
+                    "status: companion already active",
+                    "tip: use /buddy to inspect it or /buddy rehatch to replace it",
+                }
+            );
+        }
         const auto [created, companion] = state.hatch();
+        (void)created;
         return render_companion(
             "[command] buddy hatch",
             companion,
-            created ? "note: starter buddy translation from claude-code-src"
-                    : "tip: use /buddy rehatch to roll a new companion"
+            "note: starter buddy translation from claude-code-src"
         );
     }
 
@@ -239,19 +257,47 @@ std::string execute_buddy_command(StarterBuddyState& state, const std::string& p
     }
 
     if (action == "mute") {
-        const auto companion = state.mute();
+        const auto companion = state.current();
         if (!companion) {
             return "[command] buddy mute\nstatus: no companion\ntip: use /buddy hatch to get one";
         }
-        return render_companion("[command] buddy mute", *companion);
+        if (companion->muted) {
+            return render_command(
+                "[command] buddy mute",
+                {
+                    "status: already muted",
+                    "tip: use /buddy unmute to bring it back",
+                }
+            );
+        }
+        const auto updated = state.mute();
+        (void)updated;
+        return render_command(
+            "[command] buddy mute",
+            {
+                "status: muted",
+                "note: companion will hide quietly until /buddy unmute",
+            }
+        );
     }
 
     if (action == "unmute") {
-        const auto companion = state.unmute();
+        const auto companion = state.current();
         if (!companion) {
             return "[command] buddy unmute\nstatus: no companion\ntip: use /buddy hatch to get one";
         }
-        return render_companion("[command] buddy unmute", *companion);
+        if (!companion->muted) {
+            return render_command("[command] buddy unmute", {"status: already active"});
+        }
+        const auto updated = state.unmute();
+        (void)updated;
+        return render_command(
+            "[command] buddy unmute",
+            {
+                "status: active",
+                "note: welcome back",
+            }
+        );
     }
 
     return "[command] buddy\nunsupported action: " + action +
