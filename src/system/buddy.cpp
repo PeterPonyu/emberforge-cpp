@@ -270,7 +270,8 @@ std::string execute_buddy_command(StarterBuddyState& state, const std::string& p
                 }
             );
         }
-        state.mute();
+        const auto updated = state.mute();
+        (void)updated;
         return render_command(
             "[command] buddy mute",
             {
@@ -288,7 +289,8 @@ std::string execute_buddy_command(StarterBuddyState& state, const std::string& p
         if (!companion->muted) {
             return render_command("[command] buddy unmute", {"status: already active"});
         }
-        state.unmute();
+        const auto updated = state.unmute();
+        (void)updated;
         return render_command(
             "[command] buddy unmute",
             {
