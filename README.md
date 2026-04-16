@@ -24,7 +24,7 @@ mkdir build && cd build && cmake .. && make
 
 - **Local-first**: Runs with Ollama — no API keys needed for local models
 - **Hosted providers**: Anthropic Claude and xAI Grok when API keys are configured
-- **Slash commands**: `/help`, `/status`, `/doctor`, `/model`, `/compact`, `/review`, `/commit`, `/pr`, and more
+- **Slash commands**: `/help`, `/status`, `/doctor`, `/model`, `/questions`, `/tasks`, `/buddy`, `/compact`, `/review`, `/commit`, `/pr`, and more
 - **Tools**: bash, file ops, search, web, notebooks, agents, skills
 - **Sessions**: Save, resume, export conversations
 - **Plugin system**: Extend with custom tools and hooks

@@ -13,7 +13,9 @@
 #include "emberforge/plugins/registry.hpp"
 #include "emberforge/runtime/runtime.hpp"
 #include "emberforge/server/server.hpp"
+#include "emberforge/system/buddy.hpp"
 #include "emberforge/system/control_sequence.hpp"
+#include "emberforge/system/task_question_state.hpp"
 #include "emberforge/system/turn.hpp"
 #include "emberforge/system/config.hpp"
 #include "emberforge/system/dispatch.hpp"
@@ -36,6 +38,8 @@ public:
     [[nodiscard]] StarterSystemReport report() const;
     [[nodiscard]] api::Provider& provider() { return *provider_; }
     [[nodiscard]] persistence::SessionStore& session_store() { return session_store_; }
+    [[nodiscard]] StarterBuddyState& buddy() { return buddy_; }
+    [[nodiscard]] TaskQuestionStateStore& task_question_store() { return task_question_store_; }
 
 private:
     StarterSystemConfig config_;
@@ -49,6 +53,8 @@ private:
     server::Server server_;
     lsp::LspManager lsp_;
     compat::UpstreamPaths paths_;
+    StarterBuddyState buddy_;
+    TaskQuestionStateStore task_question_store_;
     LifecycleTracker lifecycle_;
     SystemDispatcher dispatcher_;
     ControlSequenceEngine control_sequence_;
