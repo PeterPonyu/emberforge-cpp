@@ -26,6 +26,9 @@ add_library(emberforge_core
     src/lsp/manager.cpp
     src/server/server.cpp
     src/system/control_sequence.cpp
+    src/system/buddy.cpp
+    src/system/task_question_state.cpp
+    src/system/doctor.cpp
     src/system/dispatch.cpp
     src/system/turn.cpp
     src/system/application.cpp
@@ -69,3 +72,9 @@ target_include_directories(test_session_store PRIVATE include)
 target_link_libraries(test_session_store PRIVATE emberforge_core)
 
 add_test(NAME test_session_store COMMAND test_session_store)
+
+add_executable(test_doctor tests/test_doctor.cpp)
+target_include_directories(test_doctor PRIVATE include)
+target_link_libraries(test_doctor PRIVATE emberforge_core)
+
+add_test(NAME test_doctor COMMAND test_doctor)

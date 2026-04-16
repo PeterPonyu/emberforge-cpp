@@ -7,6 +7,11 @@ std::vector<ToolSpec> get_tools() {
         {"read_file", "Read workspace files"},
         {"grep_search", "Search text across files"},
         {"bash", "Run shell commands"},
+        {"ask_user_question", "Create a task-linked clarification request"},
+        {"task_create", "Create a tracked task record"},
+        {"task_get", "Read a tracked task record"},
+        {"task_list", "List tracked task records"},
+        {"task_stop", "Stop a tracked task record"},
     };
 }
 

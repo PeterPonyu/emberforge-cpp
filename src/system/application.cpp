@@ -19,6 +19,7 @@ StarterSystemApplication::StarterSystemApplication(std::unique_ptr<api::Provider
       server_({config_.port}),
       lsp_(),
       paths_(compat::default_upstream_paths()),
+      task_question_store_(),
       lifecycle_(),
       dispatcher_(),
       control_sequence_(runtime_, dispatcher_, lifecycle_, telemetry_),
