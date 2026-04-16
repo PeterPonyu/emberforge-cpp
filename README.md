@@ -27,7 +27,7 @@ mkdir build && cd build && cmake .. && make
 - **Slash commands**: `/help`, `/status`, `/doctor`, `/model`, `/questions`, `/tasks`, `/buddy`, `/compact`, `/review`, `/commit`, `/pr`, and more
 - **Tools**: bash, file ops, search, web, notebooks, agents, skills
 - **Sessions**: Save, resume, export conversations
-- **Plugin system**: Extend with custom tools and hooks
+- **Plugin system**: Extend with custom tools today; runtime hook parity is planned
 - **MCP integration**: Connect to Model Context Protocol servers
 - **Telemetry**: Session tracing and usage analytics
 - **LSP support**: Language Server Protocol integration
@@ -40,7 +40,7 @@ include/emberforge/
 ├── commands/       Slash command definitions and help text
 ├── compat/         Compatibility / upstream path resolution
 ├── lsp/            Language Server Protocol integration
-├── plugins/        Plugin system with pre/post tool hooks
+├── plugins/        Plugin metadata and registry surfaces; runtime hook parity is planned
 ├── runtime/        Session state, config, model profiles
 ├── server/         HTTP/SSE server infrastructure
 ├── system/         Application lifecycle, config, dispatch, control sequences
