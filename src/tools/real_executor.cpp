@@ -52,7 +52,27 @@ std::string RealToolExecutor::execute(const std::string& tool_name, const std::s
     return "[real_executor] unknown tool: " + tool_name;
 }
 
+bool RealToolExecutor::is_within_workspace(const std::string& path) {
+    // Boundary check shared by read_file and write_file: a path is inside the
+    // workspace when, relative to the cwd, it does not start with "..".
+    // May throw std::filesystem::filesystem_error; callers handle it.
+    const auto cwd = std::filesystem::current_path();
+    const auto canonical_path = std::filesystem::weakly_canonical(path);
+    const auto rel = std::filesystem::relative(canonical_path, cwd);
+    const std::string rel_str = rel.string();
+    return !(!rel_str.empty() && rel_str.rfind("..", 0) == 0);
+}
+
 std::string RealToolExecutor::read_file(const std::string& path) {
+    // Workspace safety check: refuse paths outside cwd (mirrors write_file).
+    try {
+        if (!is_within_workspace(path)) {
+            return "[read_file] error: path is outside workspace: " + path;
+        }
+    } catch (const std::filesystem::filesystem_error& e) {
+        return std::string("[read_file] error: ") + e.what();
+    }
+
     std::ifstream ifs(path, std::ios::binary | std::ios::ate);
     if (!ifs.is_open()) {
         return "[read_file] error: cannot open file: " + path;
@@ -70,11 +90,7 @@ std::string RealToolExecutor::read_file(const std::string& path) {
 std::string RealToolExecutor::write_file(const std::string& path, const std::string& content) {
     // Basic workspace safety check: refuse paths outside cwd.
     try {
-        const auto cwd = std::filesystem::current_path();
-        const auto canonical_path = std::filesystem::weakly_canonical(path);
-        const auto rel = std::filesystem::relative(canonical_path, cwd);
-        const std::string rel_str = rel.string();
-        if (!rel_str.empty() && rel_str.rfind("..", 0) == 0) {
+        if (!is_within_workspace(path)) {
             return "[write_file] error: path is outside workspace: " + path;
         }
     } catch (const std::filesystem::filesystem_error& e) {
