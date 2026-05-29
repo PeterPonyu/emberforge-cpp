@@ -10,14 +10,17 @@ Emberforge is a terminal coding tool that works with local models through Ollama
 # Build from source
 mkdir build && cd build && cmake .. && make
 
+# The commands below run from inside the build/ directory (where the
+# ember binary is produced by the build above).
+
 # Start the REPL (auto-detects Ollama)
-./build/ember
+./ember
 
 # Or with a specific model
-./build/ember --model qwen3:8b
+./ember --model qwen3:8b
 
 # Run diagnostics
-./build/ember doctor
+./ember doctor
 ```
 
 ## Features
