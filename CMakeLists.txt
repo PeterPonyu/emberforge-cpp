@@ -22,6 +22,10 @@ add_library(emberforge_core
     src/runtime/runtime.cpp
     src/plugins/plugin.cpp
     src/plugins/registry.cpp
+    src/plugins/hook_event.cpp
+    src/plugins/hook.cpp
+    src/plugins/hook_executor.cpp
+    src/plugins/hook_runner.cpp
     src/telemetry/telemetry.cpp
     src/lsp/manager.cpp
     src/server/server.cpp
@@ -78,3 +82,9 @@ target_include_directories(test_doctor PRIVATE include)
 target_link_libraries(test_doctor PRIVATE emberforge_core)
 
 add_test(NAME test_doctor COMMAND test_doctor)
+
+add_executable(test_hook_engine tests/test_hook_engine.cpp)
+target_include_directories(test_hook_engine PRIVATE include)
+target_link_libraries(test_hook_engine PRIVATE emberforge_core)
+
+add_test(NAME test_hook_engine COMMAND test_hook_engine)
