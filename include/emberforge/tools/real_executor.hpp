@@ -10,6 +10,11 @@ public:
     std::string execute(const std::string& tool_name, const std::string& input) override;
 
 private:
+    // Returns true if `path` resolves to a location inside the current
+    // workspace (cwd). Used by read_file and write_file to refuse paths
+    // that escape the workspace (absolute or traversal-style).
+    static bool is_within_workspace(const std::string& path);
+
     std::string read_file(const std::string& path);
     std::string write_file(const std::string& path, const std::string& content);
     std::string bash(const std::string& command);

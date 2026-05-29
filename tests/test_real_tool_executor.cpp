@@ -25,7 +25,9 @@ int main() {
     // Write a file manually, then use read_file to verify content.
     // ------------------------------------------------------------------
     {
-        const std::string path = tmp_path("emberforge_test_read.txt");
+        // read_file is confined to the workspace (cwd), so use a relative
+        // in-workspace path — same convention as the write_file test below.
+        const std::string path = "emberforge_test_read.txt";
         const std::string expected = "Hello from read_file_round_trip!\n";
 
         {
@@ -91,6 +93,75 @@ int main() {
             return 1;
         }
         std::cout << "PASS (bash_echo_returns_output)\n";
+    }
+
+    // ------------------------------------------------------------------
+    // Test 4: read_file_rejects_absolute_outside_path
+    // An absolute path outside the workspace must be refused (path-traversal
+    // / arbitrary-read protection), mirroring write_file's boundary check.
+    // ------------------------------------------------------------------
+    {
+        const std::string outside = tmp_path("emberforge_test_outside_secret.txt");
+        const std::string secret = "outside-secret";
+        {
+            std::ofstream ofs(outside);
+            ofs << secret;
+        }
+
+        const std::string result = executor.execute("read_file", outside);
+        std::filesystem::remove(outside);
+
+        if (result.find("[read_file] error: path is outside workspace") == std::string::npos) {
+            std::cerr << "FAIL (read_file_rejects_absolute_outside_path): expected "
+                         "outside-workspace rejection, got \"" << result << "\"\n";
+            return 1;
+        }
+        if (result.find(secret) != std::string::npos) {
+            std::cerr << "FAIL (read_file_rejects_absolute_outside_path): leaked file "
+                         "content\n";
+            return 1;
+        }
+        std::cout << "PASS (read_file_rejects_absolute_outside_path)\n";
+    }
+
+    // ------------------------------------------------------------------
+    // Test 5: read_file_rejects_traversal_path
+    // A traversal-shaped relative path that escapes the workspace must be
+    // refused before the file is opened.
+    // ------------------------------------------------------------------
+    {
+        const std::string traversal = "../emberforge_test_traversal_outside.txt";
+        const std::string result = executor.execute("read_file", traversal);
+
+        if (result.find("[read_file] error: path is outside workspace") == std::string::npos) {
+            std::cerr << "FAIL (read_file_rejects_traversal_path): expected "
+                         "outside-workspace rejection, got \"" << result << "\"\n";
+            return 1;
+        }
+        std::cout << "PASS (read_file_rejects_traversal_path)\n";
+    }
+
+    // ------------------------------------------------------------------
+    // Test 6: read_file_allows_in_workspace_path
+    // An in-workspace read must still succeed after the boundary check.
+    // ------------------------------------------------------------------
+    {
+        const std::string path = "emberforge_test_inworkspace.txt";
+        const std::string expected = "inside-the-workspace\n";
+        {
+            std::ofstream ofs(path);
+            ofs << expected;
+        }
+
+        const std::string result = executor.execute("read_file", path);
+        std::filesystem::remove(path);
+
+        if (result != expected) {
+            std::cerr << "FAIL (read_file_allows_in_workspace_path): expected \"" << expected
+                      << "\" but got \"" << result << "\"\n";
+            return 1;
+        }
+        std::cout << "PASS (read_file_allows_in_workspace_path)\n";
     }
 
     std::cout << "All RealToolExecutor tests PASSED\n";
