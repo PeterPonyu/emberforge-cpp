@@ -88,3 +88,9 @@ target_include_directories(test_hook_engine PRIVATE include)
 target_link_libraries(test_hook_engine PRIVATE emberforge_core)
 
 add_test(NAME test_hook_engine COMMAND test_hook_engine)
+
+add_executable(test_upstream_paths tests/test_upstream_paths.cpp)
+target_include_directories(test_upstream_paths PRIVATE include)
+target_link_libraries(test_upstream_paths PRIVATE emberforge_core)
+
+add_test(NAME test_upstream_paths COMMAND test_upstream_paths)
