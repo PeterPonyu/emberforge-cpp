@@ -4,9 +4,9 @@ namespace emberforge::compat {
 
 UpstreamPaths default_upstream_paths() {
     return {
-        .claude_commands_ts = "/home/zeyufu/Desktop/claude-code-src/commands.ts",
-        .claude_tools_ts = "/home/zeyufu/Desktop/claude-code-src/tools.ts",
-        .ember_runtime_lib_rs = "/home/zeyufu/Desktop/emberforge/crates/runtime/src/lib.rs",
+        .claude_commands_ts = "claude-code-src/commands.ts",
+        .claude_tools_ts = "claude-code-src/tools.ts",
+        .ember_runtime_lib_rs = "crates/runtime/src/lib.rs",
     };
 }
 
