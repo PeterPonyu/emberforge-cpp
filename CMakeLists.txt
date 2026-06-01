@@ -16,6 +16,8 @@ find_package(nlohmann_json REQUIRED)
 add_library(emberforge_core
     src/api/provider.cpp
     src/api/ollama_provider.cpp
+    src/api/hosted_provider.cpp
+    src/api/provider_router.cpp
     src/commands/registry.cpp
     src/tools/registry.cpp
     src/tools/real_executor.cpp
@@ -106,3 +108,15 @@ target_include_directories(test_lsp_manager PRIVATE include)
 target_link_libraries(test_lsp_manager PRIVATE emberforge_core)
 
 add_test(NAME test_lsp_manager COMMAND test_lsp_manager)
+
+add_executable(test_provider_router tests/test_provider_router.cpp)
+target_include_directories(test_provider_router PRIVATE include)
+target_link_libraries(test_provider_router PRIVATE emberforge_core)
+
+add_test(NAME test_provider_router COMMAND test_provider_router)
+
+add_executable(test_tool_registry tests/test_tool_registry.cpp)
+target_include_directories(test_tool_registry PRIVATE include)
+target_link_libraries(test_tool_registry PRIVATE emberforge_core)
+
+add_test(NAME test_tool_registry COMMAND test_tool_registry)
