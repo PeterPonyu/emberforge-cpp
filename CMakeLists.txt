@@ -94,3 +94,15 @@ target_include_directories(test_upstream_paths PRIVATE include)
 target_link_libraries(test_upstream_paths PRIVATE emberforge_core)
 
 add_test(NAME test_upstream_paths COMMAND test_upstream_paths)
+
+add_executable(test_telemetry tests/test_telemetry.cpp)
+target_include_directories(test_telemetry PRIVATE include)
+target_link_libraries(test_telemetry PRIVATE emberforge_core)
+
+add_test(NAME test_telemetry COMMAND test_telemetry)
+
+add_executable(test_lsp_manager tests/test_lsp_manager.cpp)
+target_include_directories(test_lsp_manager PRIVATE include)
+target_link_libraries(test_lsp_manager PRIVATE emberforge_core)
+
+add_test(NAME test_lsp_manager COMMAND test_lsp_manager)
