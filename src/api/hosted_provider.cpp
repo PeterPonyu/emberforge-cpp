@@ -3,6 +3,7 @@
 #include <curl/curl.h>
 #include <nlohmann/json.hpp>
 
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -31,31 +32,30 @@ std::string trim_trailing_slash(std::string url) {
 std::string http_post(const std::string& url, const std::string& body,
                       const std::vector<std::string>& header_lines,
                       const char* provider_label) {
-    CURL* curl = curl_easy_init();
+    std::unique_ptr<CURL, decltype(&curl_easy_cleanup)> curl{curl_easy_init(),
+                                                              &curl_easy_cleanup};
     if (!curl) {
         throw std::runtime_error(std::string(provider_label) + ": curl_easy_init() failed");
     }
 
     std::string raw_response;
-    struct curl_slist* headers = nullptr;
+    std::unique_ptr<curl_slist, decltype(&curl_slist_free_all)> headers{nullptr,
+                                                                         &curl_slist_free_all};
     for (const auto& line : header_lines) {
-        headers = curl_slist_append(headers, line.c_str());
+        headers.reset(curl_slist_append(headers.release(), line.c_str()));
     }
 
-    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-    curl_easy_setopt(curl, CURLOPT_POST, 1L);
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, static_cast<long>(body.size()));
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_write_callback);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &raw_response);
-    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 0L);
-    curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
+    curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl.get(), CURLOPT_POST, 1L);
+    curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDS, body.c_str());
+    curl_easy_setopt(curl.get(), CURLOPT_POSTFIELDSIZE, static_cast<long>(body.size()));
+    curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, headers.get());
+    curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, curl_write_callback);
+    curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &raw_response);
+    curl_easy_setopt(curl.get(), CURLOPT_FOLLOWLOCATION, 0L);
+    curl_easy_setopt(curl.get(), CURLOPT_FAILONERROR, 1L);
 
-    const CURLcode res = curl_easy_perform(curl);
-
-    curl_slist_free_all(headers);
-    curl_easy_cleanup(curl);
+    const CURLcode res = curl_easy_perform(curl.get());
 
     if (res != CURLE_OK) {
         throw std::runtime_error(std::string(provider_label) +
@@ -149,11 +149,13 @@ xAiProvider::xAiProvider(std::string api_key, std::string model, std::string bas
 
 std::string xAiProvider::endpoint() const {
     // Mirrors chat_completions_endpoint(): append the suffix unless already present.
-    if (base_url_.size() >= 17 &&
-        base_url_.compare(base_url_.size() - 17, 17, "/chat/completions") == 0) {
+    static constexpr std::string_view kChatCompletionsSuffix = "/chat/completions";
+    if (base_url_.size() >= kChatCompletionsSuffix.size() &&
+        base_url_.compare(base_url_.size() - kChatCompletionsSuffix.size(),
+                          kChatCompletionsSuffix.size(), kChatCompletionsSuffix) == 0) {
         return base_url_;
     }
-    return base_url_ + "/chat/completions";
+    return base_url_ + std::string(kChatCompletionsSuffix);
 }
 
 std::vector<std::string> xAiProvider::build_headers() const {
