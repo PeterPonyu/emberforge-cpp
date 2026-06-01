@@ -9,6 +9,7 @@
 
 #include "emberforge/emberforge.hpp"
 #include "emberforge/api/ollama_provider.hpp"
+#include "emberforge/api/provider_router.hpp"
 #include "emberforge/commands/registry.hpp"
 #include "emberforge/system/doctor.hpp"
 #include "emberforge/ui/command_dispatch.hpp"
@@ -91,7 +92,15 @@ int main(int argc, char* argv[]) {
             setenv("EMBER_MODEL", cli_model.c_str(), 1);
         }
 
-        auto provider = std::make_unique<emberforge::api::OllamaProvider>(base_url, model);
+        // Provider routing (EFPORT-2): resolve credentials from the environment
+        // and select Anthropic / xAI / Ollama by model + creds precedence.
+        // Ollama remains the default when no hosted credentials are present.
+        emberforge::api::RouterConfig router_config;
+        router_config.model = model;
+        router_config.ollama_base_url = base_url;
+        router_config.ollama_model = model;
+        const auto creds = emberforge::api::ProviderCredentials::from_env();
+        auto provider = emberforge::api::make_provider(router_config, creds);
         emberforge::system::StarterSystemApplication app(std::move(provider));
 
         const int command_arg_index = first_non_flag_arg_index(argc, argv);

@@ -17,6 +17,10 @@ private:
 
     std::string read_file(const std::string& path);
     std::string write_file(const std::string& path, const std::string& content);
+    std::string edit_file(const std::string& path, const std::string& old_string,
+                          const std::string& new_string, bool replace_all);
+    std::string glob_search(const std::string& pattern, const std::string& root);
+    std::string grep_search(const std::string& pattern, const std::string& root);
     std::string bash(const std::string& command);
 };
 
