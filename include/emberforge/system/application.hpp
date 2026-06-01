@@ -34,6 +34,11 @@ public:
                                       StarterSystemConfig config = {});
 
     [[nodiscard]] std::vector<std::string> run_demo();
+
+    // Runs a single one-shot prompt through the control-sequence handler and
+    // returns the rendered output. Used by the `ember prompt "<text>"` CLI path.
+    [[nodiscard]] std::string run_prompt(const std::string& text);
+
     void shutdown();
     [[nodiscard]] StarterSystemReport report() const;
     [[nodiscard]] api::Provider& provider() { return *provider_; }
@@ -46,7 +51,8 @@ private:
     std::unique_ptr<api::Provider> provider_;
     persistence::SessionStore session_store_;
     tools::RealToolExecutor tool_executor_;
-    telemetry::ConsoleTelemetrySink telemetry_;
+    std::unique_ptr<telemetry::TelemetrySink> telemetry_sink_;
+    telemetry::TelemetrySink& telemetry_;
     runtime::ConversationRuntime runtime_;
     plugins::ExamplePlugin plugin_;
     plugins::PluginRegistry plugin_registry_;

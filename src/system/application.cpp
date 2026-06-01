@@ -1,4 +1,5 @@
 #include <filesystem>
+#include <iostream>
 #include <memory>
 
 #include "emberforge/api/provider.hpp"
@@ -6,13 +7,29 @@
 
 namespace emberforge::system {
 
+namespace {
+
+std::unique_ptr<telemetry::TelemetrySink> make_telemetry_sink() {
+    try {
+        return std::make_unique<telemetry::JsonlTelemetrySink>(
+            telemetry::JsonlTelemetrySink::default_path());
+    } catch (const std::exception& ex) {
+        std::cerr << "[emberforge] warning: telemetry unavailable (" << ex.what()
+                  << "); falling back to console sink\n";
+        return std::make_unique<telemetry::ConsoleTelemetrySink>();
+    }
+}
+
+} // namespace
+
 StarterSystemApplication::StarterSystemApplication(std::unique_ptr<api::Provider> provider,
                                                    StarterSystemConfig config)
     : config_(std::move(config)),
       provider_(std::move(provider)),
       session_store_(std::filesystem::path{}),
       tool_executor_(),
-      telemetry_(),
+      telemetry_sink_(make_telemetry_sink()),
+      telemetry_(*telemetry_sink_),
       runtime_(*provider_, tool_executor_, telemetry_),
       plugin_(),
       plugin_registry_({&plugin_}),
@@ -32,6 +49,11 @@ std::vector<std::string> StarterSystemApplication::run_demo() {
         control_sequence_.handle(config_.greeting).output,
         control_sequence_.handle("/tool " + config_.tool_demo_command).output,
     };
+}
+
+std::string StarterSystemApplication::run_prompt(const std::string& text) {
+    control_sequence_.bootstrap();
+    return control_sequence_.handle(text).output;
 }
 
 void StarterSystemApplication::shutdown() {

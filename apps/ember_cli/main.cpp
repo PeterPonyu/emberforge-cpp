@@ -118,6 +118,30 @@ int main(int argc, char* argv[]) {
             return 0;
         }
 
+        // One-shot prompt path (EFPORT-3): an explicit `prompt` subcommand, or
+        // any leading non-flag token that is not a known subcommand and does not
+        // start with '/', is treated as prompt text. The text is dispatched
+        // through the app's control-sequence handler and the result printed.
+        if (command_arg_index != -1 && argv[command_arg_index][0] != '/') {
+            const std::string leading = argv[command_arg_index];
+            const bool explicit_prompt = (leading == "prompt");
+            const bool known_subcommand = (leading == "doctor" || leading == "serve");
+
+            if (explicit_prompt || !known_subcommand) {
+                const int text_start = explicit_prompt ? command_arg_index + 1 : command_arg_index;
+                const std::string prompt_text = join_argv(argc, argv, text_start);
+                if (prompt_text.empty()) {
+                    std::cerr << "prompt: no text provided\n";
+                    app.shutdown();
+                    return 1;
+                }
+                const std::string output = app.run_prompt(prompt_text);
+                std::cout << output << '\n';
+                app.shutdown();
+                return 0;
+            }
+        }
+
         if (command_arg_index != -1 && argv[command_arg_index][0] == '/') {
             emberforge::ui::CommandDispatch dispatch;
             const std::string raw_command = join_argv(argc, argv, command_arg_index);
