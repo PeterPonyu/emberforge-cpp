@@ -109,7 +109,7 @@ std::unique_ptr<LspClient> LspClient::connect(LspServerConfig config) {
 
     int in_pipe[2];  // parent writes -> child stdin
     int out_pipe[2]; // child stdout -> parent reads
-    if (::pipe(in_pipe) != 0 || ::pipe(out_pipe) != 0) {
+    if (::pipe2(in_pipe, O_CLOEXEC) != 0 || ::pipe2(out_pipe, O_CLOEXEC) != 0) {
         throw std::runtime_error("LSP: failed to create stdio pipes for " + config.command);
     }
 
@@ -398,7 +398,13 @@ std::optional<std::string> LspClient::read_message() {
                 std::transform(name.begin(), name.end(), name.begin(),
                                [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
                 if (name == "content-length") {
-                    content_length = static_cast<size_t>(std::stoul(line.substr(colon + 1)));
+                    try {
+                        content_length = static_cast<size_t>(std::stoul(line.substr(colon + 1)));
+                    } catch (const std::invalid_argument&) {
+                        throw std::runtime_error("LSP: invalid Content-Length");
+                    } catch (const std::out_of_range&) {
+                        throw std::runtime_error("LSP: invalid Content-Length");
+                    }
                     have_length = true;
                 }
             }
