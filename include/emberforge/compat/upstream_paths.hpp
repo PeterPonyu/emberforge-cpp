@@ -4,10 +4,13 @@
 
 namespace emberforge::compat {
 
+// Internal compat-provenance references to the upstream reference implementation.
+// These are non-shipping constants: they are not printed in any user-facing
+// output and exist only to document parity with the reference port.
 struct UpstreamPaths {
-    std::string claude_commands_ts;
-    std::string claude_tools_ts;
-    std::string ember_runtime_lib_rs;
+    std::string upstream_commands_ref;
+    std::string upstream_tools_ref;
+    std::string upstream_runtime_ref;
 };
 
 [[nodiscard]] UpstreamPaths default_upstream_paths();

@@ -76,7 +76,7 @@ StarterSystemReport StarterSystemApplication::report() const {
         .plugin_count = plugin_registry_.size(),
         .server_description = server_.describe(),
         .lsp_summary = lsp_.summary(),
-        .runtime_anchor = paths_.ember_runtime_lib_rs,
+        .runtime_anchor = paths_.upstream_runtime_ref,
         .turn_count = runtime_.turn_count(),
         .handled_request_count = control_sequence_.records().size(),
         .lifecycle_state = to_string(control_sequence_.lifecycle_state()),
