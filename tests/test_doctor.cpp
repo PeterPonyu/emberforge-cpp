@@ -12,7 +12,7 @@ int main() {
         .plugin_count = 1,
         .server_description = "server: disabled",
         .lsp_summary = "lsp: idle",
-        .rust_anchor = "/tmp/runtime/lib.rs",
+        .runtime_anchor = "/tmp/runtime/lib.rs",
         .turn_count = 0,
         .handled_request_count = 0,
         .lifecycle_state = "ready",

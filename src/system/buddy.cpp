@@ -232,7 +232,7 @@ std::string execute_buddy_command(StarterBuddyState& state, const std::string& p
         return render_companion(
             "[command] buddy hatch",
             companion,
-            "note: starter buddy translation from claude-code-src"
+            "note: starter buddy companion"
         );
     }
 
