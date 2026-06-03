@@ -454,10 +454,10 @@ LspManager::LspManager(std::vector<LspServerConfig> server_configs) {
 std::string LspManager::summary() const {
     std::lock_guard<std::mutex> lock(mutex_);
     if (server_configs_.empty()) {
-        return "C++ LSP manager (stdio JSON-RPC, document-sync + hover; mirrors crates/lsp)";
+        return "C++ LSP manager (stdio JSON-RPC, document-sync + hover)";
     }
     return "C++ LSP manager: " + std::to_string(server_configs_.size()) + " server(s), " +
-           std::to_string(extension_map_.size()) + " extension(s) (mirrors crates/lsp)";
+           std::to_string(extension_map_.size()) + " extension(s)";
 }
 
 bool LspManager::supports_path(const std::string& path) const {
