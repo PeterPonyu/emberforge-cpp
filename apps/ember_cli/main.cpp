@@ -202,7 +202,6 @@ int main(int argc, char* argv[]) {
         std::cout << "handled requests: " << report.handled_request_count << '\n';
         std::cout << "server: " << report.server_description << '\n';
         std::cout << "lsp: " << report.lsp_summary << '\n';
-        std::cout << "rust anchor: " << report.rust_anchor << '\n';
         std::cout << "turns: " << report.turn_count << '\n';
         for (const auto& output : demo_outputs) {
             std::cout << output << '\n';

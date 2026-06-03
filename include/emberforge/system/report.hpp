@@ -14,7 +14,7 @@ struct StarterSystemReport {
     std::size_t plugin_count;
     std::string server_description;
     std::string lsp_summary;
-    std::string rust_anchor;
+    std::string runtime_anchor;
     std::size_t turn_count;
     std::size_t handled_request_count;
     std::string lifecycle_state;

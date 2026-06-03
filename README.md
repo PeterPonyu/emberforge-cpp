@@ -7,20 +7,20 @@ Emberforge is a terminal coding tool that works with local models through Ollama
 ## Quick Start
 
 ```bash
-# Build from source
-mkdir build && cd build && cmake .. && make
+# Build from source (out-of-source, generator-agnostic)
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
 
-# The commands below run from inside the build/ directory (where the
-# ember binary is produced by the build above).
+# The ember binary is produced in the build/ directory.
 
 # Start the REPL (auto-detects Ollama)
-./ember
+./build/ember
 
 # Or with a specific model
-./ember --model qwen3:8b
+./build/ember --model qwen3:8b
 
 # Run diagnostics
-./ember doctor
+./build/ember doctor
 ```
 
 ## Features
@@ -66,23 +66,23 @@ sudo apt-get install libcurl4-openssl-dev nlohmann-json3-dev
 
 **JSON library**: nlohmann/json (system package `nlohmann-json3-dev`, v3.11.3+) is used for NDJSON parsing in `OllamaProvider`. It correctly handles all JSON escape sequences including `\uXXXX` Unicode escapes. The system package is preferred over vendoring to avoid tracking large generated headers in source control.
 
-Build:
+Build (matches the CI workflow):
 
 ```bash
-mkdir build && cd build
-cmake ..
-make
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
 ```
 
-The build produces a single `ember` binary and a `test_ollama_provider` test binary.
+The build produces the `ember` binary plus several test binaries (run via
+`ctest`): `test_ollama_provider`, `test_real_tool_executor`,
+`test_command_dispatch`, `test_session_store`, `test_doctor`,
+`test_hook_engine`, `test_upstream_paths`, `test_telemetry`,
+`test_lsp_manager`, `test_provider_router`, and `test_tool_registry`.
 
 ### Running tests
 
 ```bash
-cd build
-ctest --output-on-failure
-# or directly:
-./test_ollama_provider
+ctest --test-dir build --output-on-failure
 ```
 
 ## Model Support
