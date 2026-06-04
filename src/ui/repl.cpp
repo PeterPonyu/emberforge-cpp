@@ -13,6 +13,7 @@
 
 #include "emberforge/api/provider.hpp"
 #include "emberforge/persistence/session_store.hpp"
+#include "emberforge/runtime/system_prompt.hpp"
 #include "emberforge/system/application.hpp"
 
 namespace emberforge::ui {
@@ -182,7 +183,8 @@ int Repl::run() {
                     const char* env_model = std::getenv("EMBER_MODEL");
                     const std::string model = env_model ? env_model : "qwen3:8b";
                     try {
-                        emberforge::api::MessageRequest req{model, buf};
+                        emberforge::api::MessageRequest req{
+                            model, buf, emberforge::runtime::build_runtime_system_prompt()};
                         const std::string user_ts = iso_now();
                         auto response = app_.provider().send_message(req);
                         std::cout << response.text << '\n';
