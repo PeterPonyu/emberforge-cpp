@@ -118,7 +118,8 @@ std::string AnthropicProvider::build_body(const MessageRequest& request,
 
 MessageResponse AnthropicProvider::send_message(const MessageRequest& request) {
     const std::string raw =
-        http_post(endpoint(), build_body(request), build_headers(), "AnthropicProvider");
+        http_post(endpoint(), build_body(request, request.system_prompt), build_headers(),
+                  "AnthropicProvider");
 
     try {
         const auto obj = nlohmann::json::parse(raw);
@@ -184,7 +185,8 @@ std::string xAiProvider::build_body(const MessageRequest& request,
 
 MessageResponse xAiProvider::send_message(const MessageRequest& request) {
     const std::string raw =
-        http_post(endpoint(), build_body(request), build_headers(), "xAiProvider");
+        http_post(endpoint(), build_body(request, request.system_prompt), build_headers(),
+                  "xAiProvider");
 
     try {
         const auto obj = nlohmann::json::parse(raw);

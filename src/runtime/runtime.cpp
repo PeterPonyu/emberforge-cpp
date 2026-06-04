@@ -1,5 +1,7 @@
 #include "emberforge/runtime/runtime.hpp"
 
+#include "emberforge/runtime/system_prompt.hpp"
+
 namespace emberforge::runtime {
 
 ConversationRuntime::ConversationRuntime(api::Provider& provider,
@@ -17,7 +19,10 @@ std::string ConversationRuntime::run_turn(const std::string& input) {
         output = tool_executor_.execute("bash", payload);
         telemetry_sink_.record({"tool_executed", output});
     } else {
-        const auto response = provider_.send_message({"", input});
+        // Frame the model with the canonical agent system prompt (parity with
+        // the Rust reference), injected by the provider ahead of the user turn.
+        const auto response =
+            provider_.send_message({"", input, build_runtime_system_prompt()});
         output = response.text;
         telemetry_sink_.record({"provider_completed", output});
     }

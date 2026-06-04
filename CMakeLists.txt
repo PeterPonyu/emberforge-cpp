@@ -22,6 +22,7 @@ add_library(emberforge_core
     src/tools/registry.cpp
     src/tools/real_executor.cpp
     src/runtime/runtime.cpp
+    src/runtime/system_prompt.cpp
     src/plugins/plugin.cpp
     src/plugins/registry.cpp
     src/plugins/hook_event.cpp
@@ -120,6 +121,12 @@ target_include_directories(test_tool_registry PRIVATE include)
 target_link_libraries(test_tool_registry PRIVATE emberforge_core)
 
 add_test(NAME test_tool_registry COMMAND test_tool_registry)
+
+add_executable(test_system_prompt tests/test_system_prompt.cpp)
+target_include_directories(test_system_prompt PRIVATE include)
+target_link_libraries(test_system_prompt PRIVATE emberforge_core)
+
+add_test(NAME test_system_prompt COMMAND test_system_prompt)
 
 add_executable(test_prompt_command tests/test_prompt_command.cpp)
 target_include_directories(test_prompt_command PRIVATE include)

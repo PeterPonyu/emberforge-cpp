@@ -108,28 +108,27 @@ MessageResponse OllamaProvider::send_message(const MessageRequest& request) {
     const std::string& effective_model =
         request.model.empty() ? model_ : request.model;
 
-    std::string escaped_prompt;
-    for (char c : request.prompt) {
-        switch (c) {
-            case '"':  escaped_prompt += "\\\""; break;
-            case '\\': escaped_prompt += "\\\\"; break;
-            case '\n': escaped_prompt += "\\n";  break;
-            case '\r': escaped_prompt += "\\r";  break;
-            case '\t': escaped_prompt += "\\t";  break;
-            default:   escaped_prompt += c;      break;
-        }
-    }
-
     // Bound output generation so thinking models cannot run unbounded. The
     // value is configurable (EMBER_OLLAMA_NUM_PREDICT) with a generous,
     // documented default — not a magic literal embedded in the JSON below.
     const long num_predict = resolve_num_predict(effective_model);
 
-    const std::string body =
-        "{\"model\":\"" + effective_model + "\","
-        "\"messages\":[{\"role\":\"user\",\"content\":\"" + escaped_prompt + "\"}],"
-        "\"options\":{\"num_predict\":" + std::to_string(num_predict) + "},"
-        "\"stream\":true}";
+    // Build the request with nlohmann::json so the (potentially large)
+    // canonical system prompt and the user prompt are escaped correctly. When
+    // a system prompt is present it is injected as a `system` message ahead of
+    // the user message, mirroring the Rust reference's composite agent framing.
+    nlohmann::json messages = nlohmann::json::array();
+    if (!request.system_prompt.empty()) {
+        messages.push_back({{"role", "system"}, {"content", request.system_prompt}});
+    }
+    messages.push_back({{"role", "user"}, {"content", request.prompt}});
+
+    nlohmann::json body_json;
+    body_json["model"] = effective_model;
+    body_json["messages"] = std::move(messages);
+    body_json["options"] = {{"num_predict", num_predict}};
+    body_json["stream"] = true;
+    const std::string body = body_json.dump();
 
     const std::string url = base_url_ + "/api/chat";
 
