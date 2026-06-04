@@ -133,6 +133,10 @@ Environment variables:
 - `EMBER_CONFIG_HOME` — override config directory
 - `OLLAMA_BASE_URL` — custom Ollama endpoint (default: `http://localhost:11434`)
 - `EMBER_MODEL` — model to use with the Ollama provider (default: `qwen3:8b`)
+- `EMBER_OLLAMA_NUM_PREDICT` — output-token bound (`num_predict`) for Ollama
+  chat requests, capping runaway generation by thinking models (e.g. qwen3).
+  Default is model-aware, mirroring the Rust reference's `max_tokens_for_model`:
+  `32000` for `opus` models, `64000` otherwise. Set a positive integer to override.
 - `ANTHROPIC_API_KEY` — Anthropic API credentials
 - `XAI_API_KEY` — xAI API credentials
 

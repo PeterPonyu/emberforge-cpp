@@ -2,12 +2,29 @@
 
 #include <curl/curl.h>
 #include <nlohmann/json.hpp>
+#include <cctype>
+#include <cstdlib>
+#include <exception>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 #include <sstream>
 
 namespace emberforge::api {
+
+namespace {
+
+// Output-token bound defaults. These mirror the Rust reference's
+// max_tokens_for_model (crates/api/src/providers/mod.rs): a generous ceiling so
+// normal answers are never truncated, while bounding the unbounded "thinking"
+// generation of models like qwen3 that otherwise drives pathological latency.
+// They are NOT buried magic literals: named, documented, and overridable via
+// EMBER_OLLAMA_NUM_PREDICT (see OllamaProvider::resolve_num_predict).
+constexpr long kDefaultNumPredict = 64000;  // non-opus default (reference parity)
+constexpr long kOpusNumPredict    = 32000;  // opus default (reference parity)
+constexpr const char* kNumPredictEnv = "EMBER_OLLAMA_NUM_PREDICT";
+
+} // namespace
 
 static std::string extract_content_from_line(const std::string& line) {
     try {
@@ -62,6 +79,31 @@ std::string OllamaProvider::normalize_base_url(std::string base_url) {
 OllamaProvider::OllamaProvider(std::string base_url, std::string model)
     : base_url_(normalize_base_url(std::move(base_url))), model_(std::move(model)) {}
 
+long OllamaProvider::resolve_num_predict(const std::string& model) {
+    // 1. Explicit operator override via env var (positive integer only).
+    if (const char* raw = std::getenv(kNumPredictEnv); raw != nullptr) {
+        try {
+            const long parsed = std::stol(raw);
+            if (parsed > 0) {
+                return parsed;
+            }
+        } catch (const std::exception&) {
+            // Malformed value: fall through to the model-aware default.
+        }
+    }
+
+    // 2. Model-aware default mirroring the Rust reference's max_tokens_for_model.
+    std::string lower;
+    lower.reserve(model.size());
+    for (char c : model) {
+        lower += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    }
+    if (lower.find("opus") != std::string::npos) {
+        return kOpusNumPredict;
+    }
+    return kDefaultNumPredict;
+}
+
 MessageResponse OllamaProvider::send_message(const MessageRequest& request) {
     const std::string& effective_model =
         request.model.empty() ? model_ : request.model;
@@ -78,9 +120,15 @@ MessageResponse OllamaProvider::send_message(const MessageRequest& request) {
         }
     }
 
+    // Bound output generation so thinking models cannot run unbounded. The
+    // value is configurable (EMBER_OLLAMA_NUM_PREDICT) with a generous,
+    // documented default — not a magic literal embedded in the JSON below.
+    const long num_predict = resolve_num_predict(effective_model);
+
     const std::string body =
         "{\"model\":\"" + effective_model + "\","
         "\"messages\":[{\"role\":\"user\",\"content\":\"" + escaped_prompt + "\"}],"
+        "\"options\":{\"num_predict\":" + std::to_string(num_predict) + "},"
         "\"stream\":true}";
 
     const std::string url = base_url_ + "/api/chat";
