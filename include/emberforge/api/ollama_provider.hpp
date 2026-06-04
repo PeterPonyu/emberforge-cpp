@@ -22,6 +22,14 @@ public:
 
     MessageResponse send_message(const MessageRequest& request) override;
 
+    // Structured, tool-aware chat turn (the agentic core). Sends the whole
+    // `messages` list plus the native `tools` array (built from the reused
+    // registry specs) to /api/chat with stream:true, surfaces assistant text
+    // deltas through request.on_text_delta as they arrive, and returns both the
+    // accumulated text and any parsed `message.tool_calls`. Mirrors the Rust
+    // reference's streaming + ToolUse extraction (crates/runtime/src/conversation.rs).
+    ChatResult chat(const ChatRequest& request) override;
+
     // Idempotently normalize an Ollama base URL: strip trailing '/' and a
     // single trailing "/v1" (OpenAI-compat) suffix so both http://HOST:PORT
     // and http://HOST:PORT/v1 resolve to the native API root. Generic — no
