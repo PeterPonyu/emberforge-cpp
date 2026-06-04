@@ -120,3 +120,12 @@ target_include_directories(test_tool_registry PRIVATE include)
 target_link_libraries(test_tool_registry PRIVATE emberforge_core)
 
 add_test(NAME test_tool_registry COMMAND test_tool_registry)
+
+add_executable(test_prompt_command tests/test_prompt_command.cpp)
+target_include_directories(test_prompt_command PRIVATE include)
+target_link_libraries(test_prompt_command PRIVATE emberforge_core)
+# Pass the built `ember` binary path so the test can exercise the real
+# `prompt` subcommand argument handling (no-text error path, no Ollama needed).
+target_compile_definitions(test_prompt_command PRIVATE EMBER_BINARY="$<TARGET_FILE:ember>")
+
+add_test(NAME test_prompt_command COMMAND test_prompt_command)
