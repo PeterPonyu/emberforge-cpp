@@ -128,6 +128,12 @@ target_link_libraries(test_system_prompt PRIVATE emberforge_core)
 
 add_test(NAME test_system_prompt COMMAND test_system_prompt)
 
+add_executable(test_agentic_loop tests/test_agentic_loop.cpp)
+target_include_directories(test_agentic_loop PRIVATE include)
+target_link_libraries(test_agentic_loop PRIVATE emberforge_core)
+
+add_test(NAME test_agentic_loop COMMAND test_agentic_loop)
+
 add_executable(test_prompt_command tests/test_prompt_command.cpp)
 target_include_directories(test_prompt_command PRIVATE include)
 target_link_libraries(test_prompt_command PRIVATE emberforge_core)

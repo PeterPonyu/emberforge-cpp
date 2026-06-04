@@ -144,8 +144,18 @@ int main(int argc, char* argv[]) {
                     app.shutdown();
                     return 1;
                 }
-                const std::string output = app.run_prompt(prompt_text);
-                std::cout << output << '\n';
+                // Stream assistant text to stdout as it arrives; the agent loop
+                // runs tools and feeds results back until the model is done.
+                bool streamed = false;
+                const std::string output = app.run_streaming_prompt(
+                    prompt_text, [&streamed](const std::string& delta) {
+                        streamed = true;
+                        std::cout << delta << std::flush;
+                    });
+                if (!streamed) {
+                    std::cout << output;
+                }
+                std::cout << '\n';
                 app.shutdown();
                 return 0;
             }

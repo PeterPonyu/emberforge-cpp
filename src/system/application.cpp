@@ -1,6 +1,8 @@
+#include <cstdlib>
 #include <filesystem>
 #include <iostream>
 #include <memory>
+#include <string>
 
 #include "emberforge/api/provider.hpp"
 #include "emberforge/system/application.hpp"
@@ -8,6 +10,28 @@
 namespace emberforge::system {
 
 namespace {
+
+// Resolve the session permission mode used to gate every tool call in the agent
+// loop. Defaults to DangerFullAccess — this is a local CLI operating on the
+// invoking user's own workspace, and the canonical bash tool requires it — but
+// is overridable via EMBER_PERMISSION_MODE for tighter sandboxes. The gate
+// itself is always active (see PermissionToolExecutor); this only selects how
+// permissive the session is.
+tools::PermissionMode resolve_permission_mode() {
+    if (const char* raw = std::getenv("EMBER_PERMISSION_MODE"); raw != nullptr) {
+        const std::string mode = raw;
+        if (mode == "read-only") {
+            return tools::PermissionMode::ReadOnly;
+        }
+        if (mode == "workspace-write") {
+            return tools::PermissionMode::WorkspaceWrite;
+        }
+        if (mode == "danger-full-access") {
+            return tools::PermissionMode::DangerFullAccess;
+        }
+    }
+    return tools::PermissionMode::DangerFullAccess;
+}
 
 std::unique_ptr<telemetry::TelemetrySink> make_telemetry_sink() {
     try {
@@ -28,9 +52,10 @@ StarterSystemApplication::StarterSystemApplication(std::unique_ptr<api::Provider
       provider_(std::move(provider)),
       session_store_(std::filesystem::path{}),
       tool_executor_(),
+      permission_executor_(tool_executor_, resolve_permission_mode()),
       telemetry_sink_(make_telemetry_sink()),
       telemetry_(*telemetry_sink_),
-      runtime_(*provider_, tool_executor_, telemetry_),
+      runtime_(*provider_, permission_executor_, telemetry_),
       plugin_(),
       plugin_registry_({&plugin_}),
       server_({config_.port}),
@@ -54,6 +79,16 @@ std::vector<std::string> StarterSystemApplication::run_demo() {
 std::string StarterSystemApplication::run_prompt(const std::string& text) {
     control_sequence_.bootstrap();
     return control_sequence_.handle(text).output;
+}
+
+std::string StarterSystemApplication::run_streaming_prompt(
+    const std::string& text, const api::TextDeltaSink& on_delta) {
+    // Drive the prompt directly through the runtime's multi-turn agent loop so
+    // tokens stream to the caller and tool calls are executed and fed back. The
+    // explicit `prompt`/REPL paths are always free-form prompts, so this skips
+    // the command/tool dispatch routing of run_prompt by design.
+    control_sequence_.bootstrap();
+    return runtime_.run_turn(text, on_delta);
 }
 
 void StarterSystemApplication::shutdown() {
