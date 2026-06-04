@@ -350,5 +350,120 @@ int main() {
         std::cout << "PASS (v1_base_url_hits_native_api_chat): /v1 base -> POST /api/chat\n";
     }
 
+    // ------------------------------------------------------------------
+    // request_body_carries_num_predict: the chat request body MUST include a
+    // bounded "options":{"num_predict":N} field so thinking models (qwen3)
+    // cannot generate unbounded. N is configurable via EMBER_OLLAMA_NUM_PREDICT;
+    // here we assert the model-aware default (64000, mirroring the Rust
+    // reference's max_tokens_for_model for non-opus models) is sent.
+    // Unlike the header-only capture above, this reads the full request body.
+    // ------------------------------------------------------------------
+    {
+        // resolve_num_predict default for a non-opus model must match the
+        // reference (64000); the env override is honoured when set positive.
+        using emberforge::api::OllamaProvider;
+        if (OllamaProvider::resolve_num_predict("qwen3:8b") != 64000) {
+            std::cerr << "FAIL (num_predict_default): expected 64000 for qwen3:8b\n";
+            return 1;
+        }
+        if (OllamaProvider::resolve_num_predict("claude-opus-4-6") != 32000) {
+            std::cerr << "FAIL (num_predict_default): expected 32000 for opus\n";
+            return 1;
+        }
+
+        std::string captured;  // full request (headers + body); read after join
+        auto run_body_capturing_server = [&captured](int sfd) {
+            const std::string body(MOCK_NDJSON);
+            const std::string response =
+                "HTTP/1.1 200 OK\r\n"
+                "Content-Type: application/x-ndjson\r\n"
+                "Content-Length: " + std::to_string(body.size()) + "\r\n"
+                "Connection: close\r\n"
+                "\r\n" + body;
+
+            sockaddr_in ca{};
+            socklen_t cl = sizeof(ca);
+            const int cfd = accept(sfd, reinterpret_cast<sockaddr*>(&ca), &cl);
+            if (cfd < 0) { close(sfd); return; }
+            char drain[4096];
+            // Read headers, parse Content-Length, then read the full body.
+            std::size_t header_end = std::string::npos;
+            long content_length = -1;
+            while (true) {
+                const ssize_t n = recv(cfd, drain, sizeof(drain), 0);
+                if (n <= 0) break;
+                captured.append(drain, static_cast<std::size_t>(n));
+                if (header_end == std::string::npos) {
+                    header_end = captured.find("\r\n\r\n");
+                    if (header_end != std::string::npos) {
+                        const std::string headers = captured.substr(0, header_end);
+                        const std::string key = "Content-Length:";
+                        const std::size_t kp = headers.find(key);
+                        if (kp != std::string::npos) {
+                            content_length = std::stol(headers.substr(kp + key.size()));
+                        }
+                    }
+                }
+                if (header_end != std::string::npos && content_length >= 0) {
+                    const std::size_t have = captured.size() - (header_end + 4);
+                    if (have >= static_cast<std::size_t>(content_length)) break;
+                }
+            }
+            std::size_t sent = 0;
+            while (sent < response.size()) {
+                const ssize_t n = send(cfd, response.c_str() + sent, response.size() - sent, 0);
+                if (n < 0) break;
+                sent += static_cast<std::size_t>(n);
+            }
+            close(cfd);
+            close(sfd);
+        };
+
+        const int bfd = socket(AF_INET, SOCK_STREAM, 0);
+        if (bfd < 0) { std::cerr << "FAIL (num_predict): socket\n"; return 1; }
+        int bopt = 1;
+        setsockopt(bfd, SOL_SOCKET, SO_REUSEADDR, &bopt, sizeof(bopt));
+        sockaddr_in baddr{};
+        baddr.sin_family = AF_INET;
+        baddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        baddr.sin_port = 0;
+        if (bind(bfd, reinterpret_cast<sockaddr*>(&baddr), sizeof(baddr)) < 0) {
+            std::cerr << "FAIL (num_predict): bind\n"; return 1;
+        }
+        if (listen(bfd, 1) < 0) { std::cerr << "FAIL (num_predict): listen\n"; return 1; }
+        socklen_t blen = sizeof(baddr);
+        getsockname(bfd, reinterpret_cast<sockaddr*>(&baddr), &blen);
+        const int bport = ntohs(baddr.sin_port);
+
+        std::thread body_thread(run_body_capturing_server, bfd);
+
+        const std::string body_base_url = "http://127.0.0.1:" + std::to_string(bport);
+        emberforge::api::OllamaProvider body_provider(body_base_url, "qwen3:8b");
+
+        try {
+            (void)body_provider.send_message({"qwen3:8b", "hello"});
+        } catch (const std::exception& ex) {
+            std::cerr << "FAIL (num_predict): send_message threw: " << ex.what() << "\n";
+            body_thread.join();
+            return 1;
+        }
+        body_thread.join();
+
+        const std::size_t hdr = captured.find("\r\n\r\n");
+        const std::string req_body =
+            hdr == std::string::npos ? std::string{} : captured.substr(hdr + 4);
+        if (req_body.find("\"num_predict\":64000") == std::string::npos) {
+            std::cerr << "FAIL (num_predict): request body missing "
+                         "\"num_predict\":64000\nBody was:\n" << req_body << "\n";
+            return 1;
+        }
+        if (req_body.find("\"options\"") == std::string::npos) {
+            std::cerr << "FAIL (num_predict): request body missing \"options\" object\n";
+            return 1;
+        }
+        std::cout << "PASS (request_body_carries_num_predict): "
+                     "options.num_predict=64000 sent in body\n";
+    }
+
     return 0;
 }
