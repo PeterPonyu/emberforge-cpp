@@ -4,6 +4,7 @@
 #include <nlohmann/json.hpp>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <sstream>
 
 namespace emberforge::api {
@@ -34,8 +35,32 @@ static std::size_t curl_write_callback(char* ptr, std::size_t size,
     return total;
 }
 
+// Normalize an Ollama base URL idempotently so that both the root form
+// (http://HOST:PORT) and the OpenAI-compatible form (http://HOST:PORT/v1)
+// resolve to the same native API root. We strip any trailing '/' characters
+// and a single trailing "/v1" segment (the OpenAI-compat suffix), since the
+// native endpoint path "/api/chat" is appended to the result. This is generic:
+// no host or port is assumed, and existing root-form configs are unchanged.
+std::string OllamaProvider::normalize_base_url(std::string base_url) {
+    auto strip_trailing_slashes = [](std::string& s) {
+        while (!s.empty() && s.back() == '/') {
+            s.pop_back();
+        }
+    };
+
+    strip_trailing_slashes(base_url);
+    constexpr std::string_view v1_suffix = "/v1";
+    if (base_url.size() >= v1_suffix.size() &&
+        base_url.compare(base_url.size() - v1_suffix.size(),
+                         v1_suffix.size(), v1_suffix) == 0) {
+        base_url.erase(base_url.size() - v1_suffix.size());
+        strip_trailing_slashes(base_url);
+    }
+    return base_url;
+}
+
 OllamaProvider::OllamaProvider(std::string base_url, std::string model)
-    : base_url_(std::move(base_url)), model_(std::move(model)) {}
+    : base_url_(normalize_base_url(std::move(base_url))), model_(std::move(model)) {}
 
 MessageResponse OllamaProvider::send_message(const MessageRequest& request) {
     const std::string& effective_model =

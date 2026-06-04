@@ -19,6 +19,12 @@ public:
 
     MessageResponse send_message(const MessageRequest& request) override;
 
+    // Idempotently normalize an Ollama base URL: strip trailing '/' and a
+    // single trailing "/v1" (OpenAI-compat) suffix so both http://HOST:PORT
+    // and http://HOST:PORT/v1 resolve to the native API root. Generic — no
+    // host/port assumptions. Exposed for unit testing.
+    static std::string normalize_base_url(std::string base_url);
+
 private:
     std::string base_url_;
     std::string model_;
