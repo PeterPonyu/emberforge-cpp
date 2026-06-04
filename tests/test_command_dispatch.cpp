@@ -174,8 +174,12 @@ int main() {
             std::cerr << "FAIL (starter_commands_accept_payload_args): questions ask output missing\n";
             return 1;
         }
-        if (output.find("model list:") == std::string::npos) {
-            std::cerr << "FAIL (starter_commands_accept_payload_args): model list output missing\n";
+        // `/model list` now renders the "Available models" report (parity with
+        // the Rust model report). With a non-Ollama test provider the local list
+        // is "not applicable", but the report scaffolding is always present.
+        if (output.find("Available models") == std::string::npos ||
+            output.find("Routing shortcuts") == std::string::npos) {
+            std::cerr << "FAIL (starter_commands_accept_payload_args): model list report missing\n";
             return 1;
         }
         if (output.find("[command] buddy hatch") == std::string::npos ||

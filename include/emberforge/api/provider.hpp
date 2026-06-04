@@ -76,6 +76,15 @@ public:
     // that support native tool-calling (OllamaProvider) override this. Hosted
     // providers fall back to the default — honest single-turn behavior.
     virtual ChatResult chat(const ChatRequest& request);
+
+    // Switch the active model used for subsequent turns (when a request does not
+    // override it). Plumbed so the `/model <name>` command can re-point the
+    // session at a different local model. The base implementation is a no-op for
+    // providers whose model is fixed at construction.
+    virtual void set_model(const std::string& /*model*/) {}
+
+    // The active model name, or empty when the provider does not track one.
+    [[nodiscard]] virtual std::string current_model() const { return {}; }
 };
 
 class MockProvider final : public Provider {

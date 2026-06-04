@@ -7,10 +7,14 @@
 #include <unistd.h>
 #include <vector>
 
+#include <algorithm>
+#include <exception>
+
 #include "emberforge/emberforge.hpp"
 #include "emberforge/api/ollama_provider.hpp"
 #include "emberforge/api/provider_router.hpp"
 #include "emberforge/commands/registry.hpp"
+#include "emberforge/runtime/model_router.hpp"
 #include "emberforge/system/doctor.hpp"
 #include "emberforge/ui/command_dispatch.hpp"
 #include "emberforge/ui/repl.hpp"
@@ -127,6 +131,48 @@ int main(int argc, char* argv[]) {
             return 0;
         }
 
+        // `ember models` — render the "Available models" report from the live
+        // /api/tags query (mirrors the Rust `models` subcommand). Local tags are
+        // listed with the active model marked `*`; cloud shortcuts + routing
+        // shortcuts follow. Degrades gracefully when Ollama is unreachable.
+        if (command_arg_index != -1 && std::strcmp(argv[command_arg_index], "models") == 0) {
+            const std::string current_model = app.provider().current_model();
+            std::vector<std::string> models;
+            std::string status;
+            if (auto* ollama =
+                    dynamic_cast<emberforge::api::OllamaProvider*>(&app.provider())) {
+                if (!current_model.empty()) {
+                    models.push_back(current_model);
+                }
+                try {
+                    for (const auto& tag : ollama->list_models()) {
+                        if (std::find(models.begin(), models.end(), tag) == models.end()) {
+                            models.push_back(tag);
+                        }
+                    }
+                    std::sort(models.begin(), models.end());
+                    status = models.empty()
+                                 ? "reachable, but no local models were reported"
+                                 : "reachable - " + std::to_string(models.size()) +
+                                       " local model(s) detected";
+                } catch (const std::exception& ex) {
+                    models.clear();
+                    if (!current_model.empty()) {
+                        models.push_back(current_model);
+                    }
+                    status = "unreachable - showing the current session model only (" +
+                             std::string(ex.what()) + ")";
+                }
+            } else {
+                status = "not applicable (active provider is not Ollama)";
+            }
+            std::cout << emberforge::runtime::render_available_models_report(
+                             current_model, status, models)
+                      << '\n';
+            app.shutdown();
+            return 0;
+        }
+
         // One-shot prompt path (EFPORT-3): an explicit `prompt` subcommand, or
         // any leading non-flag token that is not a known subcommand and does not
         // start with '/', is treated as prompt text. The text is dispatched
@@ -134,7 +180,8 @@ int main(int argc, char* argv[]) {
         if (command_arg_index != -1 && argv[command_arg_index][0] != '/') {
             const std::string leading = argv[command_arg_index];
             const bool explicit_prompt = (leading == "prompt");
-            const bool known_subcommand = (leading == "doctor" || leading == "serve");
+            const bool known_subcommand =
+                (leading == "doctor" || leading == "serve" || leading == "models");
 
             if (explicit_prompt || !known_subcommand) {
                 const int text_start = explicit_prompt ? command_arg_index + 1 : command_arg_index;
