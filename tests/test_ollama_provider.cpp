@@ -74,6 +74,39 @@ static void run_mock_server(int server_fd) {
 
 int main() {
     // ------------------------------------------------------------------
+    // base_url_normalization: both http://HOST:PORT and http://HOST:PORT/v1
+    // (the OpenAI-compat suffix) must resolve to the same native API root.
+    // Pure, deterministic — no server needed. Generic host/port, idempotent.
+    // ------------------------------------------------------------------
+    {
+        using emberforge::api::OllamaProvider;
+        struct Case { std::string in; std::string want; };
+        const Case cases[] = {
+            {"http://localhost:11434",      "http://localhost:11434"},
+            {"http://localhost:11434/",     "http://localhost:11434"},
+            {"http://localhost:11434/v1",   "http://localhost:11434"},
+            {"http://localhost:11434/v1/",  "http://localhost:11434"},
+            {"http://192.168.1.5:9999/v1",  "http://192.168.1.5:9999"},
+            {"https://ollama.example.com/v1", "https://ollama.example.com"},
+        };
+        for (const auto& c : cases) {
+            const std::string got = OllamaProvider::normalize_base_url(c.in);
+            if (got != c.want) {
+                std::cerr << "FAIL (base_url_normalization): " << c.in
+                          << " -> \"" << got << "\" (expected \"" << c.want << "\")\n";
+                return 1;
+            }
+            // Idempotency: normalizing the result again is a no-op.
+            if (OllamaProvider::normalize_base_url(got) != c.want) {
+                std::cerr << "FAIL (base_url_normalization): not idempotent for "
+                          << c.in << "\n";
+                return 1;
+            }
+        }
+        std::cout << "PASS (base_url_normalization): root and /v1 forms unified\n";
+    }
+
+    // ------------------------------------------------------------------
     // Check for integration test override: if OLLAMA_BASE_URL is set,
     // run against a live Ollama instance instead of the mock server.
     // ------------------------------------------------------------------
@@ -227,6 +260,95 @@ int main() {
         return 1;
     }
     std::cout << "PASS (unicode_escape_decoded): response.text == \"Café\"\n";
+
+    // ------------------------------------------------------------------
+    // v1_base_url_hits_native_api_chat: a base URL carrying the OpenAI-compat
+    // "/v1" suffix must still POST to the native "/api/chat" path (not
+    // "/v1/api/chat") and return content. This proves the normalization end to
+    // end through the real HTTP request, not just the pure helper above.
+    // ------------------------------------------------------------------
+    {
+        std::string captured_request;  // written by server thread, read after join
+        auto run_path_capturing_server = [&captured_request](int sfd) {
+            const std::string body(MOCK_NDJSON);
+            const std::string response =
+                "HTTP/1.1 200 OK\r\n"
+                "Content-Type: application/x-ndjson\r\n"
+                "Content-Length: " + std::to_string(body.size()) + "\r\n"
+                "Connection: close\r\n"
+                "\r\n" + body;
+
+            sockaddr_in ca{};
+            socklen_t cl = sizeof(ca);
+            const int cfd = accept(sfd, reinterpret_cast<sockaddr*>(&ca), &cl);
+            if (cfd < 0) { close(sfd); return; }
+            char drain[4096];
+            while (true) {
+                const ssize_t n = recv(cfd, drain, sizeof(drain), 0);
+                if (n <= 0) break;
+                captured_request.append(drain, static_cast<std::size_t>(n));
+                if (captured_request.find("\r\n\r\n") != std::string::npos) break;
+            }
+            std::size_t sent = 0;
+            while (sent < response.size()) {
+                const ssize_t n = send(cfd, response.c_str() + sent, response.size() - sent, 0);
+                if (n < 0) break;
+                sent += static_cast<std::size_t>(n);
+            }
+            close(cfd);
+            close(sfd);
+        };
+
+        const int v1_fd = socket(AF_INET, SOCK_STREAM, 0);
+        if (v1_fd < 0) { std::cerr << "FAIL (v1_base_url): socket\n"; return 1; }
+        int v1opt = 1;
+        setsockopt(v1_fd, SOL_SOCKET, SO_REUSEADDR, &v1opt, sizeof(v1opt));
+        sockaddr_in v1addr{};
+        v1addr.sin_family = AF_INET;
+        v1addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        v1addr.sin_port = 0;
+        if (bind(v1_fd, reinterpret_cast<sockaddr*>(&v1addr), sizeof(v1addr)) < 0) {
+            std::cerr << "FAIL (v1_base_url): bind\n"; return 1;
+        }
+        if (listen(v1_fd, 1) < 0) { std::cerr << "FAIL (v1_base_url): listen\n"; return 1; }
+        socklen_t v1len = sizeof(v1addr);
+        getsockname(v1_fd, reinterpret_cast<sockaddr*>(&v1addr), &v1len);
+        const int v1port = ntohs(v1addr.sin_port);
+
+        std::thread v1_thread(run_path_capturing_server, v1_fd);
+
+        // Construct with the OpenAI-compat "/v1" suffix — the discrepancy case.
+        const std::string v1_base_url =
+            "http://127.0.0.1:" + std::to_string(v1port) + "/v1";
+        emberforge::api::OllamaProvider v1_provider(v1_base_url, "test-model");
+
+        emberforge::api::MessageResponse v1_resp;
+        try {
+            v1_resp = v1_provider.send_message({"test-model", "hello"});
+        } catch (const std::exception& ex) {
+            std::cerr << "FAIL (v1_base_url): threw: " << ex.what() << "\n";
+            v1_thread.join();
+            return 1;
+        }
+        v1_thread.join();
+
+        if (v1_resp.text != "Hello world!") {
+            std::cerr << "FAIL (v1_base_url): expected \"Hello world!\" but got \""
+                      << v1_resp.text << "\"\n";
+            return 1;
+        }
+        // The request line must target /api/chat, NOT /v1/api/chat.
+        if (captured_request.find("POST /api/chat ") == std::string::npos) {
+            std::cerr << "FAIL (v1_base_url): request did not target /api/chat\n"
+                      << "Request was:\n" << captured_request << "\n";
+            return 1;
+        }
+        if (captured_request.find("/v1/api/chat") != std::string::npos) {
+            std::cerr << "FAIL (v1_base_url): request hit double-suffixed /v1/api/chat\n";
+            return 1;
+        }
+        std::cout << "PASS (v1_base_url_hits_native_api_chat): /v1 base -> POST /api/chat\n";
+    }
 
     return 0;
 }
