@@ -13,6 +13,7 @@
 
 #include "emberforge/api/provider.hpp"
 #include "emberforge/persistence/session_store.hpp"
+#include "emberforge/runtime/system_prompt.hpp"
 #include "emberforge/system/application.hpp"
 
 namespace emberforge::ui {
@@ -179,15 +180,22 @@ int Repl::run() {
                         }
                     }
                 } else {
-                    const char* env_model = std::getenv("EMBER_MODEL");
-                    const std::string model = env_model ? env_model : "qwen3:8b";
+                    const std::string user_ts = iso_now();
                     try {
-                        emberforge::api::MessageRequest req{model, buf};
-                        const std::string user_ts = iso_now();
-                        auto response = app_.provider().send_message(req);
-                        std::cout << response.text << '\n';
+                        // Drive the multi-turn agent loop, streaming assistant
+                        // text deltas to the terminal as they arrive.
+                        bool streamed = false;
+                        const std::string assistant_text = app_.run_streaming_prompt(
+                            buf, [&streamed](const std::string& delta) {
+                                streamed = true;
+                                std::cout << delta << std::flush;
+                            });
+                        if (!streamed) {
+                            std::cout << assistant_text;
+                        }
+                        std::cout << '\n';
                         session_messages_.push_back({"user", buf, user_ts});
-                        session_messages_.push_back({"assistant", response.text, iso_now()});
+                        session_messages_.push_back({"assistant", assistant_text, iso_now()});
                     } catch (const std::exception& ex) {
                         std::cerr << "[repl] error: " << ex.what() << '\n';
                     }

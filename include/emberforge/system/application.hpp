@@ -36,8 +36,15 @@ public:
     [[nodiscard]] std::vector<std::string> run_demo();
 
     // Runs a single one-shot prompt through the control-sequence handler and
-    // returns the rendered output. Used by the `ember prompt "<text>"` CLI path.
+    // returns the rendered output. Used where a buffered, fully-routed result is
+    // wanted (e.g. legacy callers and tests).
     [[nodiscard]] std::string run_prompt(const std::string& text);
+
+    // Runs a prompt through the multi-turn agent loop, streaming assistant text
+    // deltas to `on_delta` as they arrive (REPL + one-shot `prompt`). Returns the
+    // accumulated assistant text. The tool loop and permission gating apply.
+    std::string run_streaming_prompt(const std::string& text,
+                                     const api::TextDeltaSink& on_delta);
 
     void shutdown();
     [[nodiscard]] StarterSystemReport report() const;
@@ -51,6 +58,10 @@ private:
     std::unique_ptr<api::Provider> provider_;
     persistence::SessionStore session_store_;
     tools::RealToolExecutor tool_executor_;
+    // Enforces the registry's per-tool permission requirements before any tool
+    // runs in the agent loop. Wraps the real executor; mode is resolved from
+    // EMBER_PERMISSION_MODE (see application.cpp).
+    tools::PermissionToolExecutor permission_executor_;
     std::unique_ptr<telemetry::TelemetrySink> telemetry_sink_;
     telemetry::TelemetrySink& telemetry_;
     runtime::ConversationRuntime runtime_;

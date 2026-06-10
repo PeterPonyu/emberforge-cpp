@@ -1,7 +1,11 @@
 #include "emberforge/ui/command_dispatch.hpp"
 
+#include <algorithm>
+#include <exception>
 #include <iostream>
 
+#include "emberforge/api/ollama_provider.hpp"
+#include "emberforge/runtime/model_router.hpp"
 #include "emberforge/system/application.hpp"
 #include "emberforge/system/buddy.hpp"
 #include "emberforge/commands/registry.hpp"
@@ -10,6 +14,46 @@
 namespace emberforge::ui {
 
 namespace {
+
+// Render the "Available models" report for the app's active provider. When the
+// provider is an OllamaProvider, query the live local-tag list via /api/tags and
+// fold in the current model; otherwise (hosted) report no local models. Network
+// failures degrade to an "unreachable" status rather than throwing — parity with
+// the Rust discover_available_models.
+std::string render_models_report(emberforge::system::StarterSystemApplication& app) {
+    const std::string current_model = app.provider().current_model();
+
+    std::vector<std::string> models;
+    std::string status;
+    if (auto* ollama = dynamic_cast<emberforge::api::OllamaProvider*>(&app.provider())) {
+        if (!current_model.empty()) {
+            models.push_back(current_model);
+        }
+        try {
+            for (const auto& tag : ollama->list_models()) {
+                if (std::find(models.begin(), models.end(), tag) == models.end()) {
+                    models.push_back(tag);
+                }
+            }
+            std::sort(models.begin(), models.end());
+            status = models.empty()
+                         ? "reachable, but no local models were reported"
+                         : "reachable - " + std::to_string(models.size()) +
+                               " local model(s) detected";
+        } catch (const std::exception& ex) {
+            models.clear();
+            if (!current_model.empty()) {
+                models.push_back(current_model);
+            }
+            status = "unreachable - showing the current session model only (" +
+                     std::string(ex.what()) + ")";
+        }
+    } else {
+        status = "not applicable (active provider is not Ollama)";
+    }
+
+    return emberforge::runtime::render_available_models_report(current_model, status, models);
+}
 
 void print_help_lines() {
     std::cout << "available commands:\n";
@@ -83,20 +127,43 @@ CommandDispatch::CommandDispatch() {
         return 0;
     });
 
-    // /model — print the currently configured model
-    register_handler("model", [](emberforge::system::StarterSystemApplication& /*app*/,
+    // /model [list|auto|hybrid|<name>]
+    //   - no args / "show": print the active model
+    //   - "list": render the live "Available models" report (queries /api/tags)
+    //   - "auto" / "hybrid": resolve the routing strategy's default model pair
+    //     and switch the active model to the strategy's primary (fast/local)
+    //   - "<name>": switch the active model for subsequent turns
+    // Mirrors the Rust `/model` handling (ember-cli main.rs:1532-1605).
+    register_handler("model", [](emberforge::system::StarterSystemApplication& app,
                                  const std::vector<std::string>& args) -> int {
-        const char* env_model = std::getenv("EMBER_MODEL");
-        const std::string model = env_model ? env_model : "qwen3:8b";
-        if (!args.empty() && args[0] == "list") {
-            std::cout << "model list: " << model << '\n';
+        if (args.empty() || args[0] == "show") {
+            const std::string current = app.provider().current_model();
+            std::cout << "model: " << (current.empty() ? std::string{"(none)"} : current) << '\n';
             return 0;
         }
-        if (!args.empty()) {
-            std::cout << "model: " << args[0] << '\n';
+        if (args[0] == "list") {
+            std::cout << render_models_report(app) << '\n';
             return 0;
         }
-        std::cout << "model: " << model << '\n';
+
+        // auto / hybrid resolve to a routing strategy; switch to its primary
+        // model so subsequent turns use it. A bare name is a Fixed strategy.
+        const emberforge::runtime::RoutingStrategy strategy =
+            emberforge::runtime::parse_strategy(args[0]);
+        const std::string selected = strategy.primary;
+        app.provider().set_model(selected);
+        setenv("EMBER_MODEL", selected.c_str(), 1);
+        if (strategy.kind == emberforge::runtime::RoutingStrategyKind::Auto) {
+            std::cout << "model: auto (fast=" << strategy.primary
+                      << ", capable=" << strategy.secondary
+                      << ") — active model set to " << selected << '\n';
+        } else if (strategy.kind == emberforge::runtime::RoutingStrategyKind::Hybrid) {
+            std::cout << "model: hybrid (local=" << strategy.primary
+                      << ", cloud=" << strategy.secondary
+                      << ") — active model set to " << selected << '\n';
+        } else {
+            std::cout << "model: " << selected << '\n';
+        }
         return 0;
     });
 

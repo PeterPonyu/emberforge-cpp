@@ -22,6 +22,8 @@ add_library(emberforge_core
     src/tools/registry.cpp
     src/tools/real_executor.cpp
     src/runtime/runtime.cpp
+    src/runtime/system_prompt.cpp
+    src/runtime/model_router.cpp
     src/plugins/plugin.cpp
     src/plugins/registry.cpp
     src/plugins/hook_event.cpp
@@ -120,3 +122,42 @@ target_include_directories(test_tool_registry PRIVATE include)
 target_link_libraries(test_tool_registry PRIVATE emberforge_core)
 
 add_test(NAME test_tool_registry COMMAND test_tool_registry)
+
+add_executable(test_system_prompt tests/test_system_prompt.cpp)
+target_include_directories(test_system_prompt PRIVATE include)
+target_link_libraries(test_system_prompt PRIVATE emberforge_core)
+
+add_test(NAME test_system_prompt COMMAND test_system_prompt)
+
+add_executable(test_agentic_loop tests/test_agentic_loop.cpp)
+target_include_directories(test_agentic_loop PRIVATE include)
+target_link_libraries(test_agentic_loop PRIVATE emberforge_core)
+
+add_test(NAME test_agentic_loop COMMAND test_agentic_loop)
+
+add_executable(test_prompt_command tests/test_prompt_command.cpp)
+target_include_directories(test_prompt_command PRIVATE include)
+target_link_libraries(test_prompt_command PRIVATE emberforge_core)
+# Pass the built `ember` binary path so the test can exercise the real
+# `prompt` subcommand argument handling (no-text error path, no Ollama needed).
+target_compile_definitions(test_prompt_command PRIVATE EMBER_BINARY="$<TARGET_FILE:ember>")
+
+add_test(NAME test_prompt_command COMMAND test_prompt_command)
+
+add_executable(test_model_router tests/test_model_router.cpp)
+target_include_directories(test_model_router PRIVATE include)
+target_link_libraries(test_model_router PRIVATE emberforge_core)
+
+add_test(NAME test_model_router COMMAND test_model_router)
+
+add_executable(test_thinking tests/test_thinking.cpp)
+target_include_directories(test_thinking PRIVATE include)
+target_link_libraries(test_thinking PRIVATE emberforge_core)
+
+add_test(NAME test_thinking COMMAND test_thinking)
+
+add_executable(test_project_context tests/test_project_context.cpp)
+target_include_directories(test_project_context PRIVATE include)
+target_link_libraries(test_project_context PRIVATE emberforge_core)
+
+add_test(NAME test_project_context COMMAND test_project_context)
