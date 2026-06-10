@@ -75,13 +75,15 @@ then available credentials**:
 
 | Provider | Default? | Auth env var | Notes |
 | --- | --- | --- | --- |
-| **Ollama** (local) | Yes | none | Set `OLLAMA_BASE_URL` (default `http://localhost:11434`) |
+| **Ollama** (local) | Yes | none | Set `OLLAMA_BASE_URL` (default `http://localhost:11434`; a trailing `/v1` is stripped automatically) |
 | **Anthropic** | No | `ANTHROPIC_API_KEY` | Claude Opus / Sonnet / Haiku families |
 | **xAI** | No | `XAI_API_KEY` | Grok models |
 
 Relevant environment variables:
 
-- `OLLAMA_BASE_URL` — Ollama endpoint (default `http://localhost:11434`)
+- `OLLAMA_BASE_URL` — Ollama endpoint (default `http://localhost:11434`). Both the root form
+  (`http://HOST:PORT`) and the OpenAI-compatible form (`http://HOST:PORT/v1`) are accepted;
+  `OllamaProvider::normalize_base_url` strips a trailing `/v1` before appending `/api/chat`.
 - `EMBER_MODEL` — model for the Ollama provider (default `qwen3:8b`)
 - `ANTHROPIC_API_KEY` — selects/enables the Anthropic provider
 - `XAI_API_KEY` — selects/enables the xAI provider
@@ -126,6 +128,20 @@ tests/                     CTest-driven unit/integration tests
 CMakeLists.txt             Build + test registration
 .github/workflows/ci.yml   CI: apt deps → configure → build → ctest
 ```
+
+## Parity gaps vs Rust reference
+
+The following Rust-reference features are **not implemented** in the C++ port.
+Do not add code for them unless the task explicitly requests it.
+
+| Feature | Rust flag / behaviour | C++ status |
+| --- | --- | --- |
+| Structured output from `prompt` | `--output-format json\|ndjson` | Not implemented — plain text only |
+| Permission mode flag | `--permission-mode read-only\|workspace-write\|danger-full-access` | Not implemented — no flag; env var `EMBER_PERMISSION_MODE` not yet wired |
+| Allowed-tools flag | `--allowed-tools` / `--allowedTools` | Not implemented |
+| Decision ledger | Per-turn tool-approval record | Not implemented |
+| MCP client | Model Context Protocol server integration | Not implemented |
+| Plugin runtime hooks | Pre/post-tool callbacks in plugin runtime | Not implemented (metadata + registry scaffolding only) |
 
 ## Conventions for agents
 
