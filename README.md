@@ -152,7 +152,7 @@ reference implementation. The C++ port tracks it closely but the following featu
 | Feature | Rust reference | C++ status |
 | --- | --- | --- |
 | `--output-format json` / `ndjson` | `ember prompt … --output-format json\|ndjson` | Not implemented — `prompt` outputs plain text only |
-| `--permission-mode` CLI flag | `read-only`, `workspace-write`, `danger-full-access` | Not implemented — permission mode is env-only (`EMBER_PERMISSION_MODE` is not yet wired) |
+| `--permission-mode` CLI flag | `read-only`, `workspace-write`, `danger-full-access` | CLI flag not ported — permission mode is env-only: `EMBER_PERMISSION_MODE` (`read-only` \| `workspace-write` \| `danger-full-access`) is wired in `src/system/application.cpp` |
 | `--allowed-tools` / `--allowedTools` | Restricts tool set for the turn | Not implemented |
 | Decision ledger | Structured record of tool-approval decisions per turn | Not implemented |
 | MCP client | Connect to Model Context Protocol servers | Not implemented (no MCP code in this port) |

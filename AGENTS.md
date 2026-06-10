@@ -137,7 +137,7 @@ Do not add code for them unless the task explicitly requests it.
 | Feature | Rust flag / behaviour | C++ status |
 | --- | --- | --- |
 | Structured output from `prompt` | `--output-format json\|ndjson` | Not implemented — plain text only |
-| Permission mode flag | `--permission-mode read-only\|workspace-write\|danger-full-access` | Not implemented — no flag; env var `EMBER_PERMISSION_MODE` not yet wired |
+| Permission mode flag | `--permission-mode read-only\|workspace-write\|danger-full-access` | CLI flag not ported — env var `EMBER_PERMISSION_MODE` IS wired (`read-only` \| `workspace-write` \| `danger-full-access`, see `src/system/application.cpp`) |
 | Allowed-tools flag | `--allowed-tools` / `--allowedTools` | Not implemented |
 | Decision ledger | Per-turn tool-approval record | Not implemented |
 | MCP client | Model Context Protocol server integration | Not implemented |
