@@ -2,9 +2,13 @@
 
 #include <curl/curl.h>
 #include <nlohmann/json.hpp>
+#include <algorithm>
+#include <array>
 #include <cctype>
 #include <cstdlib>
 #include <exception>
+#include <iostream>
+#include <set>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -13,6 +17,77 @@
 namespace emberforge::api {
 
 namespace {
+
+// Tags potentially split across NDJSON chunks; the separator holds back a
+// partial trailing tag so it is never misclassified.
+constexpr std::string_view kThinkOpen = "<think>";
+constexpr std::string_view kThinkClose = "</think>";
+
+// Longest suffix of `s` that is a strict (non-full) prefix of `tag` — the number
+// of trailing chars that could be the start of a split tag and must be held
+// back. Mirrors the Go/TS partialTagSuffixLen / partialMarkerSuffix.
+std::size_t partial_tag_suffix_len(const std::string& s, std::string_view tag) {
+    const std::size_t max_len = std::min(tag.size() - 1, s.size());
+    for (std::size_t n = max_len; n > 0; --n) {
+        if (tag.substr(0, n) == std::string_view(s).substr(s.size() - n)) {
+            return n;
+        }
+    }
+    return 0;
+}
+
+// Model families that emit a separate reasoning channel, mirroring the Rust
+// reference's THINKING_FAMILIES and the Go/TS ports. For these we request
+// Ollama's structured `think` mode so reasoning arrives in message.thinking.
+constexpr std::array<std::string_view, 2> kThinkingFamilies = {"qwen3", "deepseek-r1"};
+
+// Whether `model` is a known thinking model (case-insensitive family prefix).
+bool is_thinking_model(const std::string& model) {
+    std::string lower;
+    lower.reserve(model.size());
+    for (char c : model) {
+        lower += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    }
+    for (const auto family : kThinkingFamilies) {
+        if (lower.rfind(family, 0) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Left-trim ASCII whitespace.
+std::string ltrim(const std::string& s) {
+    const std::size_t begin = s.find_first_not_of(" \t\r\n");
+    return begin == std::string::npos ? std::string{} : s.substr(begin);
+}
+
+// Interpret an env value as a boolean flag: empty/unset is false; "1", "true",
+// "yes", "on" (case-insensitive) are true.
+bool env_flag_enabled(const char* raw) {
+    if (raw == nullptr) {
+        return false;
+    }
+    std::string lower;
+    for (char c : std::string(raw)) {
+        if (std::isspace(static_cast<unsigned char>(c)) == 0) {
+            lower += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        }
+    }
+    return lower == "1" || lower == "true" || lower == "yes" || lower == "on";
+}
+
+// Surface separated reasoning to stderr when show_thinking() is enabled. Kept
+// provider-level so both REPL and one-shot paths benefit and stdout stays the
+// answer only.
+void emit_thinking(const std::string& thinking) {
+    const std::size_t begin = thinking.find_first_not_of(" \t\r\n");
+    if (begin == std::string::npos || !show_thinking()) {
+        return;
+    }
+    const std::size_t end = thinking.find_last_not_of(" \t\r\n");
+    std::cerr << "[thinking] " << thinking.substr(begin, end - begin + 1) << '\n';
+}
 
 // Output-token bound defaults. These mirror the Rust reference's
 // max_tokens_for_model (crates/api/src/providers/mod.rs): a generous ceiling so
@@ -26,22 +101,145 @@ constexpr const char* kNumPredictEnv = "EMBER_OLLAMA_NUM_PREDICT";
 
 } // namespace
 
-static std::string extract_content_from_line(const std::string& line) {
-    try {
-        const auto obj = nlohmann::json::parse(line);
-        return obj.value("/message/content"_json_pointer, std::string{});
-    } catch (const nlohmann::json::exception&) {
-        return {};
+static std::size_t curl_write_callback(char* ptr, std::size_t size,
+                                       std::size_t nmemb, void* userdata);
+
+bool show_thinking() {
+    return env_flag_enabled(std::getenv(kShowThinkingEnv));
+}
+
+std::string ThinkStreamSeparator::push_content(const std::string& delta) {
+    pending_ += delta;
+    std::string emit;
+    for (;;) {
+        switch (state_) {
+            case State::Detecting: {
+                const std::string lstripped = ltrim(pending_);
+                if (lstripped.empty()) {
+                    // Only leading whitespace so far — could precede <think>.
+                    return emit;
+                }
+                if (lstripped.rfind(kThinkOpen, 0) == 0) {
+                    // Well-formed leading think block: drop leading WS + open tag.
+                    pending_ = lstripped.substr(kThinkOpen.size());
+                    state_ = State::Thinking;
+                    continue;
+                }
+                if (std::string(kThinkOpen).rfind(lstripped, 0) == 0) {
+                    // `lstripped` is a partial prefix of "<think>" — wait for more.
+                    return emit;
+                }
+                // No leading think block: everything (incl. leading WS) is answer.
+                emit += pending_;
+                pending_.clear();
+                state_ = State::Answer;
+                return emit;
+            }
+            case State::Thinking: {
+                const std::size_t idx = pending_.find(kThinkClose);
+                if (idx != std::string::npos) {
+                    thinking_ += pending_.substr(0, idx);
+                    pending_ = pending_.substr(idx + kThinkClose.size());
+                    // Drop a single newline right after the close tag so the
+                    // answer doesn't start with a stray blank line.
+                    if (!pending_.empty() && pending_.front() == '\n') {
+                        pending_.erase(pending_.begin());
+                    }
+                    state_ = State::Answer;
+                    continue;
+                }
+                // No close tag yet: emit thinking but hold back a possible
+                // partial closing tag at the tail.
+                const std::size_t hold = partial_tag_suffix_len(pending_, kThinkClose);
+                if (hold < pending_.size()) {
+                    thinking_ += pending_.substr(0, pending_.size() - hold);
+                    pending_ = pending_.substr(pending_.size() - hold);
+                }
+                return emit;
+            }
+            case State::Answer:
+            default: {
+                emit += pending_;
+                pending_.clear();
+                return emit;
+            }
+        }
     }
 }
 
-static bool line_is_done(const std::string& line) {
-    try {
-        const auto obj = nlohmann::json::parse(line);
-        return obj.value("done", false);
-    } catch (const nlohmann::json::exception&) {
-        return false;
+void ThinkStreamSeparator::add_structured_thinking(const std::string& delta) {
+    thinking_ += delta;
+}
+
+std::string ThinkStreamSeparator::finish() {
+    if (state_ == State::Thinking) {
+        // Unterminated leading think block → the remainder is all reasoning.
+        thinking_ += pending_;
+        pending_.clear();
+        return {};
     }
+    // Detecting (never matched a full <think>) or answer → remainder is answer.
+    std::string out = std::move(pending_);
+    pending_.clear();
+    state_ = State::Answer;
+    return out;
+}
+
+std::string strip_leading_think_block(const std::string& content,
+                                      std::string& thinking) {
+    ThinkStreamSeparator separator;
+    std::string answer = separator.push_content(content);
+    answer += separator.finish();
+    thinking += separator.thinking_text();
+    return answer;
+}
+
+std::vector<std::string> OllamaProvider::parse_tags_response(
+    const std::string& json_body) {
+    std::set<std::string> names;
+    try {
+        const auto obj = nlohmann::json::parse(json_body);
+        if (obj.contains("models") && obj["models"].is_array()) {
+            for (const auto& model : obj["models"]) {
+                const std::string name = model.value("name", std::string{});
+                const std::size_t begin = name.find_first_not_of(" \t\r\n");
+                if (begin != std::string::npos) {
+                    names.insert(name);
+                }
+            }
+        }
+    } catch (const nlohmann::json::exception&) {
+        return {};
+    }
+    return std::vector<std::string>(names.begin(), names.end());
+}
+
+std::vector<std::string> OllamaProvider::list_models() const {
+    const std::string url = base_url_ + "/api/tags";
+
+    CURL* curl = curl_easy_init();
+    if (!curl) {
+        throw std::runtime_error("OllamaProvider: curl_easy_init() failed");
+    }
+
+    std::string raw_response;
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_write_callback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &raw_response);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 0L);
+    curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 5L);
+
+    const CURLcode res = curl_easy_perform(curl);
+    curl_easy_cleanup(curl);
+
+    if (res != CURLE_OK) {
+        throw std::runtime_error(
+            std::string("OllamaProvider: /api/tags request failed: ") +
+            curl_easy_strerror(res));
+    }
+    return parse_tags_response(raw_response);
 }
 
 static std::size_t curl_write_callback(char* ptr, std::size_t size,
@@ -120,9 +318,13 @@ static nlohmann::json build_messages_array(const ChatRequest& request) {
 // optional sink) and any message.tool_calls are accumulated.
 struct ChatStreamContext {
     std::string partial;                 // buffer for an incomplete trailing line
-    std::string text;                    // accumulated assistant text
+    std::string text;                    // accumulated assistant ANSWER text
     std::vector<ToolCall> tool_calls;    // accumulated structured tool calls
     const TextDeltaSink* on_delta;       // optional, may be null
+    // Splits each content delta into the final answer and the model's reasoning,
+    // so only the answer is streamed/accumulated; a well-formed leading
+    // <think> block and structured message.thinking are held off-band.
+    ThinkStreamSeparator separator;
 };
 
 // Process one complete NDJSON line from the /api/chat stream.
@@ -134,11 +336,25 @@ static void process_chat_line(const std::string& line, ChatStreamContext& ctx) {
         return;  // ignore keep-alives / partial fragments
     }
 
+    if (obj.contains("message") && obj["message"].is_object()) {
+        const auto& message = obj["message"];
+        // Structured reasoning channel (think:true models) — never an answer.
+        const std::string thinking = message.value("thinking", std::string{});
+        if (!thinking.empty()) {
+            ctx.separator.add_structured_thinking(thinking);
+        }
+    }
+
     const std::string delta = obj.value("/message/content"_json_pointer, std::string{});
     if (!delta.empty()) {
-        ctx.text += delta;
-        if (ctx.on_delta && *ctx.on_delta) {
-            (*ctx.on_delta)(delta);
+        // Stream only the ANSWER portion; the separator strips a leading
+        // <think>...</think> block so reasoning never reaches stdout.
+        const std::string answer = ctx.separator.push_content(delta);
+        if (!answer.empty()) {
+            ctx.text += answer;
+            if (ctx.on_delta && *ctx.on_delta) {
+                (*ctx.on_delta)(answer);
+            }
         }
     }
 
@@ -260,6 +476,11 @@ MessageResponse OllamaProvider::send_message(const MessageRequest& request) {
     body_json["messages"] = std::move(messages);
     body_json["options"] = {{"num_predict", num_predict}};
     body_json["stream"] = true;
+    // Thinking models route reasoning into the structured message.thinking
+    // channel; the separator also strips any inline leading <think> block.
+    if (is_thinking_model(effective_model)) {
+        body_json["think"] = true;
+    }
     const std::string body = body_json.dump();
 
     const std::string url = base_url_ + "/api/chat";
@@ -298,16 +519,39 @@ MessageResponse OllamaProvider::send_message(const MessageRequest& request) {
             curl_easy_strerror(res));
     }
 
-    std::string accumulated;
+    // Separate the model's reasoning from its final answer: structured
+    // `message.thinking` (think:true models) is accumulated off-band, and a
+    // well-formed LEADING <think>...</think> block inlined into content is
+    // stripped. stdout (this return value) carries the answer only; reasoning
+    // goes to stderr behind EMBER_SHOW_THINKING (default off).
+    ThinkStreamSeparator separator;
+    std::string answer;
     std::istringstream stream(raw_response);
     std::string line;
     while (std::getline(stream, line)) {
         if (line.empty()) continue;
-        accumulated += extract_content_from_line(line);
-        if (line_is_done(line)) break;
+        try {
+            const auto obj = nlohmann::json::parse(line);
+            if (obj.contains("message") && obj["message"].is_object()) {
+                const auto& message = obj["message"];
+                const std::string thinking = message.value("thinking", std::string{});
+                if (!thinking.empty()) {
+                    separator.add_structured_thinking(thinking);
+                }
+                const std::string content = message.value("content", std::string{});
+                if (!content.empty()) {
+                    answer += separator.push_content(content);
+                }
+            }
+            if (obj.value("done", false)) break;
+        } catch (const nlohmann::json::exception&) {
+            // ignore keep-alives / partial fragments
+        }
     }
+    answer += separator.finish();
+    emit_thinking(separator.thinking_text());
 
-    return MessageResponse{accumulated};
+    return MessageResponse{answer};
 }
 
 ChatResult OllamaProvider::chat(const ChatRequest& request) {
@@ -321,6 +565,12 @@ ChatResult OllamaProvider::chat(const ChatRequest& request) {
     body_json["messages"] = build_messages_array(request);
     body_json["options"] = {{"num_predict", num_predict}};
     body_json["stream"] = true;
+    // Thinking models route reasoning into the structured message.thinking
+    // channel; the separator also strips any inline leading <think> block so the
+    // streamed answer (and tool-call turns) never leak reasoning.
+    if (is_thinking_model(effective_model)) {
+        body_json["think"] = true;
+    }
     // Native tool-calling: advertise the reused registry specs so the model can
     // emit structured message.tool_calls (no string-scraping). Omit when empty.
     if (!request.tools.empty()) {
@@ -366,6 +616,17 @@ ChatResult OllamaProvider::chat(const ChatRequest& request) {
     if (!ctx.partial.empty()) {
         process_chat_line(ctx.partial, ctx);
     }
+
+    // Flush any answer tail buffered by the separator, then surface the
+    // separated reasoning to stderr (behind EMBER_SHOW_THINKING; default off).
+    const std::string tail = ctx.separator.finish();
+    if (!tail.empty()) {
+        ctx.text += tail;
+        if (ctx.on_delta && *ctx.on_delta) {
+            (*ctx.on_delta)(tail);
+        }
+    }
+    emit_thinking(ctx.separator.thinking_text());
 
     return ChatResult{std::move(ctx.text), std::move(ctx.tool_calls)};
 }
