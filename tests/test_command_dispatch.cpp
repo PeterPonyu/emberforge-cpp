@@ -187,6 +187,10 @@ int main() {
             std::cerr << "FAIL (starter_commands_accept_payload_args): buddy payload missing\n";
             return 1;
         }
+        if (output.find("claude-code-src") != std::string::npos) {
+            std::cerr << "FAIL (starter_commands_accept_payload_args): buddy hatch leaked source-tool brand\n";
+            return 1;
+        }
         if (dispatch.invoke("buddy", app, {"hatch"}) != 0) {
             std::cerr << "FAIL (starter_commands_accept_payload_args): second buddy hatch returned non-zero\n";
             return 1;
